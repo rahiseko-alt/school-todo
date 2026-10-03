@@ -544,9 +544,11 @@ test('履歴完全性テスト: 1タスクの 作成→修正→追記→状態�
     assert.ok(h.actionType, '種別が空でない');
   });
 
-  // 誰が何をしたか完全に追跡できることをアサート
-  assert.strictEqual(hist[0].actionType, '新規登録');
-  assert.strictEqual(hist[0].actor, '教頭');
+  // 誰が何をしたか完全に追跡できることをアサート (指示書第13項: 新しい順)
+  assert.strictEqual(hist[0].actionType, '状態変更');
+  assert.strictEqual(hist[0].afterValue, '完了');
+  assert.strictEqual(hist[hist.length - 1].actionType, '新規登録');
+  assert.strictEqual(hist[hist.length - 1].actor, '教頭');
 
   const titleUpdate = hist.find(h => h.fieldName === 'タイトル');
   assert.ok(titleUpdate && titleUpdate.actor === '校長' && titleUpdate.beforeValue === '学芸会プログラム印刷');
@@ -647,9 +649,12 @@ test('最終人間シナリオテスト (第58項): 職員A作成→職員B修�
   });
 
   // 各ステップのログ整合性を厳格検証
+  // 履歴は新しい順 (指示書第13項): 先頭が最後の操作、末尾が新規作成
+  assert.strictEqual(history[0].actionType, '状態変更');
+  assert.strictEqual(history[0].afterValue, '完了');
   // 1: 職員A(教頭)の新規作成
-  assert.strictEqual(history[0].actionType, '新規登録');
-  assert.strictEqual(history[0].actor, '教頭');
+  assert.strictEqual(history[history.length - 1].actionType, '新規登録');
+  assert.strictEqual(history[history.length - 1].actor, '教頭');
 
   // 2: 職員B(校長)の内容修正 (タイトル, 詳細, 担当者)
   const bTitle = history.find(h => h.fieldName === 'タイトル' && h.actor === '校長');

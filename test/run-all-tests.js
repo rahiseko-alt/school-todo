@@ -15,7 +15,7 @@ console.log('================================================================\n'
 const testSuites = [
   {
     name: 'Level 1: 静的コード確認 (Syntax Check)',
-    cmd: 'node -c src/Logic.js && node -c src/Code.js && node -c test/gas-mock.js',
+    cmd: 'node -c src/Logic.js && node -c src/Code.js && node -c test/gas-mock.js && node -c test/test-regressions.js',
     description: 'バックエンド、ロジック、テストハーネスの構文チェック'
   },
   {
@@ -32,6 +32,11 @@ const testSuites = [
     name: 'Level 3 & Level 4: 統合テスト、人間テストケース1〜10、履歴完全性、UXテスト',
     script: 'test/test-human-scenarios.js',
     description: '一連の業務シナリオ、方針変更、追記、完了、中止、連打、スマホ対応、10件分類、履歴追跡、UX10問'
+  },
+  {
+    name: '再発防止: レビュー指摘 (GAS読み込み順、履歴の整合性、メンバー確認、履歴の並び順)',
+    script: 'test/test-regressions.js',
+    description: 'Code→Logic の読み込み順での期間判定・入力チェック、History失敗時のTasks巻き戻し、原因ログ、Members確認、新しい順'
   },
   {
     name: 'UI / DOM / CSS: レスポンシブ、モーダル、アクセシビリティ検証',

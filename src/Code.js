@@ -5,17 +5,25 @@
  * Google Apps Script / Node.js 双方で動作するデータアクセス・API実装
  */
 
-// 外部ロジックモジュールの参照 (Node.js環境ではrequire、GASではグローバルLogic)
-var LogicModule = null;
-if (typeof require !== 'undefined') {
-  try {
-    LogicModule = require('./Logic');
-  } catch (e) {
-    // パス違い等のフォールバック
-  }
+/**
+ * 期間判定・バリデーションの共通ロジック (src/Logic.js) を取得する。
+ * GAS ではファイルの読み込み順が保証されないため、読み込み時ではなく呼び出し時に解決する。
+ * @returns {object}
+ */
+function getLogic() {
+  if (typeof Logic !== 'undefined') return Logic;
+  return require('./Logic');
 }
-if (!LogicModule && typeof globalThis !== 'undefined' && globalThis.Logic) {
-  LogicModule = globalThis.Logic;
+
+var SYSTEM_ERROR_MESSAGE = '処理できませんでした。もう一度操作してください。';
+
+/**
+ * 開発者向けに原因をログへ出す (GAS では「実行数」画面で確認できる)
+ * @param {string} where
+ * @param {Error|any} err
+ */
+function logError(where, err) {
+  console.error('[' + where + '] ' + (err && err.stack ? err.stack : String(err)));
 }
 
 // =============================================================================
@@ -85,30 +93,29 @@ function setSpreadsheetForTest(ss) {
  */
 function getSpreadsheet() {
   if (_testSpreadsheet) return _testSpreadsheet;
-  if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.getActiveSpreadsheet) {
-    try {
-      var ss = SpreadsheetApp.getActiveSpreadsheet();
-      if (ss) return ss;
-    } catch (e) {}
-  }
-  return null;
+  return SpreadsheetApp.getActiveSpreadsheet();
 }
 
 /**
- * 排他制御用 Lock オブジェクト取得
+ * スクリプトロックを取得して fn を実行し、必ず解放する。
+ * 想定外の例外は原因をログへ出し、利用者には理解可能なメッセージを返す。
+ * @param {string} where ログ用の呼び出し元名
+ * @param {function(): object} fn
  * @returns {object}
  */
-function getLock() {
-  if (typeof LockService !== 'undefined' && LockService.getScriptLock) {
-    try {
-      var lock = LockService.getScriptLock();
-      if (lock) return lock;
-    } catch (e) {}
+function withLock(where, fn) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) {
+    return { success: false, error: 'ほかの人が操作中のため保存できませんでした。少し待ってからもう一度操作してください。' };
   }
-  return {
-    tryLock: function() { return true; },
-    releaseLock: function() {}
-  };
+  try {
+    return fn();
+  } catch (err) {
+    logError(where, err);
+    return { success: false, error: SYSTEM_ERROR_MESSAGE };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /**
@@ -117,19 +124,7 @@ function getLock() {
  * @returns {string}
  */
 function getNowStr(date) {
-  if (LogicModule && LogicModule.formatDateTime) {
-    return LogicModule.formatDateTime(date || new Date());
-  }
-  if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-    try {
-      return Utilities.formatDate(date ? new Date(date) : new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
-    } catch (e) {}
-  }
-  var d = date ? new Date(date) : new Date();
-  var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  var jst = new Date(utc + (3600000 * 9));
-  var pad = function(n) { return String(n).padStart(2, '0'); };
-  return jst.getFullYear() + '/' + pad(jst.getMonth() + 1) + '/' + pad(jst.getDate()) + ' ' + pad(jst.getHours()) + ':' + pad(jst.getMinutes());
+  return getLogic().formatDateTime(date || new Date());
 }
 
 /**
@@ -138,19 +133,7 @@ function getNowStr(date) {
  * @returns {string}
  */
 function getTodayYmd(date) {
-  if (LogicModule && LogicModule.getTodayStr) {
-    return LogicModule.getTodayStr(date);
-  }
-  if (typeof Utilities !== 'undefined' && Utilities.formatDate) {
-    try {
-      return Utilities.formatDate(date ? new Date(date) : new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-    } catch (e) {}
-  }
-  var d = date ? new Date(date) : new Date();
-  var utc = d.getTime() + (d.getTimezoneOffset() * 60000);
-  var jst = new Date(utc + (3600000 * 9));
-  var pad = function(n) { return String(n).padStart(2, '0'); };
-  return jst.getFullYear() + '-' + pad(jst.getMonth() + 1) + '-' + pad(jst.getDate());
+  return getLogic().getTodayStr(date);
 }
 
 /**
@@ -185,16 +168,7 @@ function formatDateTimeVal(val) {
  * @returns {string}
  */
 function generateUuid() {
-  if (typeof Utilities !== 'undefined' && Utilities.getUuid) {
-    try {
-      return Utilities.getUuid();
-    } catch (e) {}
-  }
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    var r = Math.random() * 16 | 0;
-    var v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  return Utilities.getUuid();
 }
 
 /**
@@ -264,7 +238,6 @@ function getNotesMap(ss) {
  */
 function readAllTasks(ss) {
   ss = ss || getSpreadsheet();
-  if (!ss) return [];
   var taskSheet = ss.getSheetByName('Tasks');
   if (!taskSheet) return [];
   var lastRow = taskSheet.getLastRow();
@@ -273,28 +246,132 @@ function readAllTasks(ss) {
   var notesMap = getNotesMap(ss);
   var values = taskSheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
   var tasks = [];
-
   for (var i = 0; i < values.length; i++) {
-    var row = values[i];
-    var taskId = String(row[0] || '').trim();
+    var taskId = String(values[i][0] || '').trim();
     if (!taskId) continue;
-
-    tasks.push({
-      taskId: taskId,
-      title: String(row[1] || ''),
-      description: String(row[2] || ''),
-      periodType: String(row[3] || ''),
-      specifiedDate: formatDateVal(row[4]),
-      status: String(row[5] || '検討中'),
-      assignee: String(row[6] || ''),
-      createdBy: String(row[7] || ''),
-      createdAt: formatDateTimeVal(row[8]),
-      updatedBy: String(row[9] || ''),
-      updatedAt: formatDateTimeVal(row[10]),
-      notes: notesMap[taskId] || []
-    });
+    tasks.push(rowToTask(values[i], notesMap[taskId] || []));
   }
   return tasks;
+}
+
+/**
+ * Tasks シートの1行を Task オブジェクトへ変換
+ * @param {Array<any>} row
+ * @param {Array<object>} notes
+ * @returns {object}
+ */
+function rowToTask(row, notes) {
+  return {
+    taskId: String(row[0] || '').trim(),
+    title: String(row[1] || ''),
+    description: String(row[2] || ''),
+    periodType: String(row[3] || ''),
+    specifiedDate: formatDateVal(row[4]),
+    status: String(row[5] || '検討中'),
+    assignee: String(row[6] || ''),
+    createdBy: String(row[7] || ''),
+    createdAt: formatDateTimeVal(row[8]),
+    updatedBy: String(row[9] || ''),
+    updatedAt: formatDateTimeVal(row[10]),
+    notes: notes
+  };
+}
+
+/**
+ * 更新系API で使う Tasks / History シートを取得 (無ければ初期化)
+ * @param {object} ss
+ * @returns {{ task: object, history: object }}
+ */
+function getWritableSheets(ss) {
+  if (!ss.getSheetByName('Tasks') || !ss.getSheetByName('History')) {
+    initSheets(ss);
+  }
+  return { task: ss.getSheetByName('Tasks'), history: ss.getSheetByName('History') };
+}
+
+/**
+ * taskId で Tasks シートの行を探す
+ * @param {object} taskSheet
+ * @param {string} taskId
+ * @returns {{ rowIndex: number, row: Array<any> }|null}
+ */
+function findTaskRow(taskSheet, taskId) {
+  var lastRow = taskSheet.getLastRow();
+  if (lastRow <= 1) return null;
+  var values = taskSheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
+  var target = String(taskId).trim();
+  for (var i = 0; i < values.length; i++) {
+    if (String(values[i][0]).trim() === target) {
+      return { rowIndex: i + 2, row: values[i] };
+    }
+  }
+  return null;
+}
+
+/**
+ * History シート1行分を作る
+ * @returns {Array<any>}
+ */
+function buildHistoryRow(taskId, timestamp, actor, actionType, fieldName, beforeValue, afterValue, comment) {
+  return [generateUuid(), taskId, timestamp, actor, actionType, fieldName, beforeValue, afterValue, comment];
+}
+
+/**
+ * 難所A: Tasks の1行と、それに対応する History 行をまとめて書き込む。
+ * History の書き込みに失敗した場合は Tasks を元に戻し、
+ * 「Tasks だけ更新されて History が残らない」状態を作らない。
+ * @param {{ task: object, history: object }} sheets
+ * @param {number} rowIndex 書き込む Tasks の行番号
+ * @param {Array<any>} newRow
+ * @param {Array<any>|null} oldRow 更新前の行 (新規登録なら null)
+ * @param {Array<Array<any>>} historyRows
+ */
+function writeTaskWithHistory(sheets, rowIndex, newRow, oldRow, historyRows) {
+  var taskRange = sheets.task.getRange(rowIndex, 1, 1, TASK_HEADERS.length);
+  taskRange.setValues([newRow]);
+  try {
+    var historyStart = sheets.history.getLastRow() + 1;
+    sheets.history.getRange(historyStart, 1, historyRows.length, HISTORY_HEADERS.length).setValues(historyRows);
+  } catch (err) {
+    try {
+      if (oldRow) {
+        taskRange.setValues([oldRow]);
+      } else {
+        sheets.task.deleteRow(rowIndex);
+      }
+    } catch (rollbackErr) {
+      logError('writeTaskWithHistory:rollback taskId=' + newRow[0], rollbackErr);
+    }
+    throw err;
+  }
+  if (typeof SpreadsheetApp !== 'undefined') {
+    SpreadsheetApp.flush();
+  }
+}
+
+/**
+ * Members シートの有効メンバー名一覧
+ * @param {object} ss
+ * @returns {Array<string>}
+ */
+function getActiveMemberNames(ss) {
+  var res = getMembers(ss);
+  if (!res.success) throw new Error(res.error);
+  return res.members.map(function(m) { return m.name; });
+}
+
+/**
+ * 名前が有効メンバーに含まれるかを確認し、含まれなければエラーメッセージを返す
+ * @param {Array<string>} activeNames
+ * @param {string} name
+ * @param {string} label 例: '登録者'
+ * @returns {string|null}
+ */
+function checkMemberName(activeNames, name, label) {
+  if (activeNames.indexOf(name) === -1) {
+    return label + 'は一覧から選んでください。';
+  }
+  return null;
 }
 
 // =============================================================================
@@ -303,7 +380,7 @@ function readAllTasks(ss) {
 
 /**
  * Web App GETリクエストハンドラ
- * @param {object} e 
+ * @param {object} e
  * @returns {HtmlOutput}
  */
 function doGet(e) {
@@ -319,14 +396,11 @@ function doGet(e) {
 
 /**
  * シート初期化 (シートが存在しなければヘッダー作成、初期Members投入)
- * @param {object} [ss] 
+ * @param {object} [ss]
  * @returns {{ success: boolean, message: string }}
  */
 function initSheets(ss) {
   ss = ss || getSpreadsheet();
-  if (!ss) {
-    throw new Error('Spreadsheet が見つかりません。');
-  }
 
   // 1. Tasks シート
   var taskSheet = ss.getSheetByName('Tasks');
@@ -370,20 +444,17 @@ function initSheets(ss) {
  * @returns {{ success: boolean, tasks: Array<object>, members: Array<object>, serverTime: string, currentView: string }}
  */
 function getInitialData() {
-  try {
-    var tasksRes = getTasks('today');
-    var membersRes = getMembers();
-    var serverTime = getNowStr();
-    return {
-      success: true,
-      tasks: tasksRes.tasks || [],
-      members: membersRes.members || [],
-      serverTime: serverTime,
-      currentView: 'today'
-    };
-  } catch (e) {
-    return { success: false, error: e.message || String(e) };
-  }
+  var tasksRes = getTasks('today');
+  if (!tasksRes.success) return tasksRes;
+  var membersRes = getMembers();
+  if (!membersRes.success) return membersRes;
+  return {
+    success: true,
+    tasks: tasksRes.tasks,
+    members: membersRes.members,
+    serverTime: getNowStr(),
+    currentView: 'today'
+  };
 }
 
 /**
@@ -394,30 +465,13 @@ function getInitialData() {
 function getTasks(viewType) {
   try {
     var tasks = readAllTasks();
-    var filtered = tasks;
     if (viewType && viewType !== 'all') {
-      if (LogicModule && LogicModule.filterTasksByView) {
-        filtered = LogicModule.filterTasksByView(tasks, viewType);
-      } else {
-        var todayStr = getTodayYmd();
-        if (viewType === 'today') {
-          filtered = tasks.filter(function(t) {
-            return t.periodType === '今日' || t.specifiedDate === todayStr;
-          });
-        } else if (viewType === 'this_week') {
-          filtered = tasks.filter(function(t) {
-            return t.periodType === '今日' || t.periodType === '今週';
-          });
-        } else if (viewType === 'this_month') {
-          filtered = tasks.filter(function(t) {
-            return t.periodType === '今日' || t.periodType === '今週' || t.periodType === '今月';
-          });
-        }
-      }
+      tasks = getLogic().filterTasksByView(tasks, viewType);
     }
-    return { success: true, tasks: filtered };
+    return { success: true, tasks: tasks };
   } catch (e) {
-    return { success: false, error: e.message || String(e) };
+    logError('getTasks', e);
+    return { success: false, error: '予定を読み込めませんでした。もう一度操作してください。' };
   }
 }
 
@@ -427,44 +481,15 @@ function getTasks(viewType) {
  * @returns {{ success: boolean, task: object }|{ success: false, error: string }}
  */
 function createTask(data) {
-  if (!data || typeof data !== 'object') {
-    return { success: false, error: '入力データが無効です。' };
-  }
-
-  // バリデーション
-  if (LogicModule && LogicModule.validateTaskInput) {
-    var valRes = LogicModule.validateTaskInput(data, false);
-    if (!valRes.valid) {
-      return { success: false, error: valRes.errors.join('、') };
-    }
-  } else {
-    if (!data.title || !String(data.title).trim()) {
-      return { success: false, error: 'タイトルは必須です。' };
-    }
-    if (!data.periodType) {
-      return { success: false, error: '期間区分は必須です。' };
-    }
-    if (!data.createdBy) {
-      return { success: false, error: '作成者は必須です。' };
-    }
+  var valRes = getLogic().validateTaskInput(data, false);
+  if (!valRes.valid) {
+    return { success: false, error: valRes.errors.join('、') };
   }
 
   var ss = getSpreadsheet();
-  if (!ss) return { success: false, error: 'Spreadsheet が見つかりません。' };
-
-  var lock = getLock();
-  if (!lock.tryLock(15000)) {
-    return { success: false, error: '混雑のため排他ロックを取得できませんでした。再度お試しください。' };
-  }
-
-  try {
-    var taskSheet = ss.getSheetByName('Tasks');
-    var historySheet = ss.getSheetByName('History');
-    if (!taskSheet || !historySheet) {
-      initSheets(ss);
-      taskSheet = ss.getSheetByName('Tasks');
-      historySheet = ss.getSheetByName('History');
-    }
+  return withLock('createTask', function() {
+    var sheets = getWritableSheets(ss);
+    var taskSheet = sheets.task;
 
     var nowStr = getNowStr();
     var title = String(data.title).trim();
@@ -475,12 +500,16 @@ function createTask(data) {
     var assignee = String(data.assignee || '').trim();
     var createdBy = String(data.createdBy || '').trim();
 
+    var activeNames = getActiveMemberNames(ss);
+    var memberError = checkMemberName(activeNames, createdBy, '登録者') ||
+      (assignee ? checkMemberName(activeNames, assignee, '担当') : null);
+    if (memberError) return { success: false, error: memberError };
+
     // 二重登録防止チェック: 同一作成者・同一タイトル・同一期間・同一指定日で同一分の連続送信を検知
     var lastRow = taskSheet.getLastRow();
     if (lastRow > 1) {
       var checkCount = Math.min(lastRow - 1, 5);
-      var startCheckRow = lastRow - checkCount + 1;
-      var recentRows = taskSheet.getRange(startCheckRow, 1, checkCount, TASK_HEADERS.length).getValues();
+      var recentRows = taskSheet.getRange(lastRow - checkCount + 1, 1, checkCount, TASK_HEADERS.length).getValues();
       for (var i = recentRows.length - 1; i >= 0; i--) {
         var r = recentRows[i];
         if (
@@ -490,139 +519,50 @@ function createTask(data) {
           formatDateVal(r[4]) === specifiedDate &&
           formatDateTimeVal(r[8]) === nowStr
         ) {
-          var existingTask = {
-            taskId: String(r[0]),
-            title: String(r[1]),
-            description: String(r[2]),
-            periodType: String(r[3]),
-            specifiedDate: formatDateVal(r[4]),
-            status: String(r[5]),
-            assignee: String(r[6]),
-            createdBy: String(r[7]),
-            createdAt: formatDateTimeVal(r[8]),
-            updatedBy: String(r[9]),
-            updatedAt: formatDateTimeVal(r[10]),
-            notes: []
-          };
-          return { success: true, task: existingTask };
+          return { success: true, task: rowToTask(r, []) };
         }
       }
     }
 
     // 難所C: 排他制御下での連番 taskId 採番
     var taskId = generateTaskId(taskSheet);
-
     var taskRow = [
-      taskId,
-      title,
-      description,
-      periodType,
-      specifiedDate,
-      status,
-      assignee,
-      createdBy,
-      nowStr,
-      createdBy,
-      nowStr
+      taskId, title, description, periodType, specifiedDate, status,
+      assignee, createdBy, nowStr, createdBy, nowStr
     ];
-
-    // Tasks シートへ追加
-    taskSheet.appendRow(taskRow);
-
-    // 難所A: History シートへ新規登録履歴を追加
-    var historyId = 'HIST-' + generateUuid();
-    var historyRow = [
-      historyId,
-      taskId,
-      nowStr,
-      createdBy,
-      '新規登録',
-      '全体',
-      '',
-      title,
+    var historyRow = buildHistoryRow(
+      taskId, nowStr, createdBy, '新規登録', '全体', '', title,
       description ? ('新規登録: ' + description.substring(0, 100)) : '新規登録'
-    ];
-    historySheet.appendRow(historyRow);
+    );
 
-    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.flush) {
-      SpreadsheetApp.flush();
-    }
+    // 難所A: Tasks と History をまとめて書き込む
+    writeTaskWithHistory(sheets, lastRow + 1, taskRow, null, [historyRow]);
 
-    var newTask = {
-      taskId: taskId,
-      title: title,
-      description: description,
-      periodType: periodType,
-      specifiedDate: specifiedDate,
-      status: status,
-      assignee: assignee,
-      createdBy: createdBy,
-      createdAt: nowStr,
-      updatedBy: createdBy,
-      updatedAt: nowStr,
-      notes: []
-    };
-
-    return { success: true, task: newTask };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+    return { success: true, task: rowToTask(taskRow, []) };
+  });
 }
 
 /**
  * 予定更新API (各項目の変更差分をHistoryに記録し、更新日時・更新者をTasksに反映)
- * @param {string} taskId 
+ * @param {string} taskId
  * @param {object} data { title: string, periodType: string, specifiedDate?: string, description?: string, status: string, assignee?: string, updatedBy: string }
  * @returns {{ success: boolean, task: object }|{ success: false, error: string }}
  */
 function updateTask(taskId, data) {
-  if (!taskId) return { success: false, error: 'taskId は必須です。' };
-  if (!data || typeof data !== 'object') return { success: false, error: '入力データが無効です。' };
-
-  if (LogicModule && LogicModule.validateTaskInput) {
-    var valRes = LogicModule.validateTaskInput(data, true);
-    if (!valRes.valid) {
-      return { success: false, error: valRes.errors.join('、') };
-    }
+  if (!taskId) return { success: false, error: '対象の予定が指定されていません。' };
+  var valRes = getLogic().validateTaskInput(data, true);
+  if (!valRes.valid) {
+    return { success: false, error: valRes.errors.join('、') };
   }
 
   var ss = getSpreadsheet();
-  if (!ss) return { success: false, error: 'Spreadsheet が見つかりません。' };
-
-  var lock = getLock();
-  if (!lock.tryLock(15000)) {
-    return { success: false, error: '混雑のため排他ロックを取得できませんでした。再度お試しください。' };
-  }
-
-  try {
-    var taskSheet = ss.getSheetByName('Tasks');
-    var historySheet = ss.getSheetByName('History');
-    if (!taskSheet || !historySheet) {
-      return { success: false, error: '必要なシートが見つかりません。' };
+  return withLock('updateTask', function() {
+    var sheets = getWritableSheets(ss);
+    var found = findTaskRow(sheets.task, taskId);
+    if (!found) {
+      return { success: false, error: '対象の予定が見つかりません。画面を更新してください。' };
     }
-
-    var lastRow = taskSheet.getLastRow();
-    if (lastRow <= 1) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
-    }
-
-    var values = taskSheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
-    var targetRowIndex = -1;
-    var oldRow = null;
-
-    for (var i = 0; i < values.length; i++) {
-      if (String(values[i][0]).trim() === String(taskId).trim()) {
-        targetRowIndex = i + 2;
-        oldRow = values[i];
-        break;
-      }
-    }
-
-    if (targetRowIndex === -1 || !oldRow) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
-    }
+    var oldRow = found.row;
 
     var nowStr = getNowStr();
     var updatedBy = String(data.updatedBy || '').trim();
@@ -633,8 +573,6 @@ function updateTask(taskId, data) {
     var oldSpecifiedDate = formatDateVal(oldRow[4]);
     var oldStatus = String(oldRow[5] || '');
     var oldAssignee = String(oldRow[6] || '');
-    var createdBy = String(oldRow[7] || '');
-    var createdAt = formatDateTimeVal(oldRow[8]);
 
     var newTitle = data.title !== undefined ? String(data.title).trim() : oldTitle;
     var newDescription = data.description !== undefined ? String(data.description) : oldDescription;
@@ -643,380 +581,146 @@ function updateTask(taskId, data) {
     var newStatus = data.status !== undefined ? String(data.status) : oldStatus;
     var newAssignee = data.assignee !== undefined ? String(data.assignee).trim() : oldAssignee;
 
-    // 難所A: 変更差分を検知してHistoryへ記録
-    var historyEntries = [];
+    var activeNames = getActiveMemberNames(ss);
+    var memberError = checkMemberName(activeNames, updatedBy, '更新者') ||
+      (newAssignee && newAssignee !== oldAssignee ? checkMemberName(activeNames, newAssignee, '担当') : null);
+    if (memberError) return { success: false, error: memberError };
 
-    if (oldTitle !== newTitle) {
-      historyEntries.push({
-        fieldName: 'タイトル',
-        beforeValue: oldTitle,
-        afterValue: newTitle,
-        actionType: '修正',
-        comment: ''
-      });
-    }
-    if (oldDescription !== newDescription) {
-      historyEntries.push({
-        fieldName: '詳細',
-        beforeValue: oldDescription,
-        afterValue: newDescription,
-        actionType: '修正',
-        comment: ''
-      });
-    }
-    if (oldPeriodType !== newPeriodType) {
-      historyEntries.push({
-        fieldName: '期間',
-        beforeValue: oldPeriodType,
-        afterValue: newPeriodType,
-        actionType: '修正',
-        comment: ''
-      });
-    }
-    if (oldSpecifiedDate !== newSpecifiedDate) {
-      historyEntries.push({
-        fieldName: '指定日',
-        beforeValue: oldSpecifiedDate,
-        afterValue: newSpecifiedDate,
-        actionType: '修正',
-        comment: ''
-      });
-    }
-    if (oldStatus !== newStatus) {
-      historyEntries.push({
-        fieldName: '状態',
-        beforeValue: oldStatus,
-        afterValue: newStatus,
-        actionType: '状態変更',
-        comment: '状態を「' + oldStatus + '」から「' + newStatus + '」に変更'
-      });
-    }
-    if (oldAssignee !== newAssignee) {
-      historyEntries.push({
-        fieldName: '担当者',
-        beforeValue: oldAssignee,
-        afterValue: newAssignee,
-        actionType: '修正',
-        comment: ''
-      });
-    }
-
-    // 差分がなくても更新者が指定されている場合は更新ログまたは全体ログ
-    if (historyEntries.length === 0) {
-      historyEntries.push({
-        fieldName: '全体',
-        beforeValue: oldTitle,
-        afterValue: newTitle,
-        actionType: '修正',
-        comment: '変更なし更新'
-      });
-    }
-
-    for (var j = 0; j < historyEntries.length; j++) {
-      var h = historyEntries[j];
-      historySheet.appendRow([
-        'HIST-' + generateUuid(),
-        taskId,
-        nowStr,
-        updatedBy,
-        h.actionType,
-        h.fieldName,
-        h.beforeValue,
-        h.afterValue,
-        h.comment
-      ]);
-    }
-
-    // Tasks シート更新
-    var updatedRow = [
-      taskId,
-      newTitle,
-      newDescription,
-      newPeriodType,
-      newSpecifiedDate,
-      newStatus,
-      newAssignee,
-      createdBy,
-      createdAt,
-      updatedBy,
-      nowStr
+    // 難所A: 変更差分を項目ごとに History へ記録
+    var changes = [
+      ['タイトル', oldTitle, newTitle, '修正'],
+      ['詳細', oldDescription, newDescription, '修正'],
+      ['期間', oldPeriodType, newPeriodType, '修正'],
+      ['指定日', oldSpecifiedDate, newSpecifiedDate, '修正'],
+      ['状態', oldStatus, newStatus, '状態変更'],
+      ['担当者', oldAssignee, newAssignee, '修正']
     ];
-    taskSheet.getRange(targetRowIndex, 1, 1, TASK_HEADERS.length).setValues([updatedRow]);
-
-    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.flush) {
-      SpreadsheetApp.flush();
+    var historyRows = [];
+    for (var j = 0; j < changes.length; j++) {
+      var c = changes[j];
+      if (c[1] === c[2]) continue;
+      var comment = c[3] === '状態変更' ? '状態を「' + c[1] + '」から「' + c[2] + '」に変更' : '';
+      historyRows.push(buildHistoryRow(taskId, nowStr, updatedBy, c[3], c[0], c[1], c[2], comment));
+    }
+    // 差分がなくても保存操作をしたことは記録する
+    if (historyRows.length === 0) {
+      historyRows.push(buildHistoryRow(taskId, nowStr, updatedBy, '修正', '全体', oldTitle, newTitle, '変更なし更新'));
     }
 
-    var notesMap = getNotesMap(ss);
+    var updatedRow = [
+      taskId, newTitle, newDescription, newPeriodType, newSpecifiedDate, newStatus,
+      newAssignee, oldRow[7], oldRow[8], updatedBy, nowStr
+    ];
+    writeTaskWithHistory(sheets, found.rowIndex, updatedRow, oldRow, historyRows);
 
-    var updatedTask = {
-      taskId: taskId,
-      title: newTitle,
-      description: newDescription,
-      periodType: newPeriodType,
-      specifiedDate: newSpecifiedDate,
-      status: newStatus,
-      assignee: newAssignee,
-      createdBy: createdBy,
-      createdAt: createdAt,
-      updatedBy: updatedBy,
-      updatedAt: nowStr,
-      notes: notesMap[taskId] || []
-    };
-
-    return { success: true, task: updatedTask };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+    return { success: true, task: rowToTask(updatedRow, getNotesMap(ss)[taskId] || []) };
+  });
 }
 
 /**
  * 追記メモ登録API
  * 指示書第10項: 追記では既存本文を書き換えない。追記内容は履歴として保存する。現在の予定カードからも追記が確認できるようにする。
- * @param {string} taskId 
+ * @param {string} taskId
  * @param {object} data { note: string, actor: string }
  * @returns {{ success: boolean, task: object }|{ success: false, error: string }}
  */
 function addTaskNote(taskId, data) {
-  if (!taskId) return { success: false, error: 'taskId は必須です。' };
-  if (!data || typeof data !== 'object') return { success: false, error: '入力データが無効です。' };
-
-  if (LogicModule && LogicModule.validateNoteInput) {
-    var valRes = LogicModule.validateNoteInput(data);
-    if (!valRes.valid) {
-      return { success: false, error: valRes.errors.join('、') };
-    }
-  } else {
-    if (!data.note || !String(data.note).trim()) {
-      return { success: false, error: '追記内容は必須です。' };
-    }
-    if (!data.actor || !String(data.actor).trim()) {
-      return { success: false, error: '操作者は必須です。' };
-    }
+  if (!taskId) return { success: false, error: '対象の予定が指定されていません。' };
+  var valRes = getLogic().validateNoteInput(data);
+  if (!valRes.valid) {
+    return { success: false, error: valRes.errors.join('、') };
   }
 
   var ss = getSpreadsheet();
-  if (!ss) return { success: false, error: 'Spreadsheet が見つかりません。' };
-
-  var lock = getLock();
-  if (!lock.tryLock(15000)) {
-    return { success: false, error: '混雑のため排他ロックを取得できませんでした。再度お試しください。' };
-  }
-
-  try {
-    var taskSheet = ss.getSheetByName('Tasks');
-    var historySheet = ss.getSheetByName('History');
-    if (!taskSheet || !historySheet) {
-      return { success: false, error: '必要なシートが見つかりません。' };
-    }
-
-    var lastRow = taskSheet.getLastRow();
-    if (lastRow <= 1) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
-    }
-
-    var values = taskSheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
-    var targetRowIndex = -1;
-    var targetRow = null;
-
-    for (var i = 0; i < values.length; i++) {
-      if (String(values[i][0]).trim() === String(taskId).trim()) {
-        targetRowIndex = i + 2;
-        targetRow = values[i];
-        break;
-      }
-    }
-
-    if (targetRowIndex === -1 || !targetRow) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
+  return withLock('addTaskNote', function() {
+    var sheets = getWritableSheets(ss);
+    var found = findTaskRow(sheets.task, taskId);
+    if (!found) {
+      return { success: false, error: '対象の予定が見つかりません。画面を更新してください。' };
     }
 
     var nowStr = getNowStr();
     var actor = String(data.actor).trim();
     var note = String(data.note).trim();
 
-    // 1. History シートへ追記履歴を追加 (難所A)
-    var historyId = 'HIST-' + generateUuid();
-    historySheet.appendRow([
-      historyId,
-      taskId,
-      nowStr,
-      actor,
-      '追記',
-      '追記',
-      '',
-      note,
-      note
-    ]);
+    var memberError = checkMemberName(getActiveMemberNames(ss), actor, '追記者');
+    if (memberError) return { success: false, error: memberError };
 
-    // 2. Tasks シートの更新者・更新日時を反映
-    // (既存本文 description は書き換えない。カード側で notes 配列から表示)
-    targetRow[9] = actor;   // updatedBy
-    targetRow[10] = nowStr; // updatedAt
-    taskSheet.getRange(targetRowIndex, 1, 1, TASK_HEADERS.length).setValues([targetRow]);
+    // 既存本文 description は書き換えず、更新者・更新日時だけ反映する
+    var newRow = found.row.slice();
+    newRow[9] = actor;
+    newRow[10] = nowStr;
+    var historyRow = buildHistoryRow(taskId, nowStr, actor, '追記', '追記', '', note, note);
+    writeTaskWithHistory(sheets, found.rowIndex, newRow, found.row, [historyRow]);
 
-    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.flush) {
-      SpreadsheetApp.flush();
-    }
-
-    var notesMap = getNotesMap(ss);
-
-    var task = {
-      taskId: taskId,
-      title: String(targetRow[1] || ''),
-      description: String(targetRow[2] || ''),
-      periodType: String(targetRow[3] || ''),
-      specifiedDate: formatDateVal(targetRow[4]),
-      status: String(targetRow[5] || ''),
-      assignee: String(targetRow[6] || ''),
-      createdBy: String(targetRow[7] || ''),
-      createdAt: formatDateTimeVal(targetRow[8]),
-      updatedBy: actor,
-      updatedAt: nowStr,
-      notes: notesMap[taskId] || []
-    };
-
-    return { success: true, task: task };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+    return { success: true, task: rowToTask(newRow, getNotesMap(ss)[taskId] || []) };
+  });
 }
 
 /**
  * 状態変更API (状態のみの変更操作・Historyへの「状態変更」記録)
- * @param {string} taskId 
+ * @param {string} taskId
  * @param {object} data { status: string, actor: string }
  * @returns {{ success: boolean, task: object }|{ success: false, error: string }}
  */
 function changeTaskStatus(taskId, data) {
-  if (!taskId) return { success: false, error: 'taskId は必須です。' };
-  if (!data || typeof data !== 'object') return { success: false, error: '入力データが無効です。' };
-
-  if (LogicModule && LogicModule.validateStatusInput) {
-    var valRes = LogicModule.validateStatusInput(data);
-    if (!valRes.valid) {
-      return { success: false, error: valRes.errors.join('、') };
-    }
-  } else {
-    if (!data.status) return { success: false, error: 'ステータスは必須です。' };
-    if (!data.actor) return { success: false, error: '操作者は必須です。' };
+  if (!taskId) return { success: false, error: '対象の予定が指定されていません。' };
+  var valRes = getLogic().validateStatusInput(data);
+  if (!valRes.valid) {
+    return { success: false, error: valRes.errors.join('、') };
   }
 
   var ss = getSpreadsheet();
-  if (!ss) return { success: false, error: 'Spreadsheet が見つかりません。' };
-
-  var lock = getLock();
-  if (!lock.tryLock(15000)) {
-    return { success: false, error: '混雑のため排他ロックを取得できませんでした。再度お試しください。' };
-  }
-
-  try {
-    var taskSheet = ss.getSheetByName('Tasks');
-    var historySheet = ss.getSheetByName('History');
-    if (!taskSheet || !historySheet) {
-      return { success: false, error: '必要なシートが見つかりません。' };
-    }
-
-    var lastRow = taskSheet.getLastRow();
-    if (lastRow <= 1) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
-    }
-
-    var values = taskSheet.getRange(2, 1, lastRow - 1, TASK_HEADERS.length).getValues();
-    var targetRowIndex = -1;
-    var targetRow = null;
-
-    for (var i = 0; i < values.length; i++) {
-      if (String(values[i][0]).trim() === String(taskId).trim()) {
-        targetRowIndex = i + 2;
-        targetRow = values[i];
-        break;
-      }
-    }
-
-    if (targetRowIndex === -1 || !targetRow) {
-      return { success: false, error: '対象の予定が見つかりません: ' + taskId };
+  return withLock('changeTaskStatus', function() {
+    var sheets = getWritableSheets(ss);
+    var found = findTaskRow(sheets.task, taskId);
+    if (!found) {
+      return { success: false, error: '対象の予定が見つかりません。画面を更新してください。' };
     }
 
     var nowStr = getNowStr();
     var actor = String(data.actor).trim();
     var newStatus = String(data.status).trim();
-    var oldStatus = String(targetRow[5] || '検討中');
+    var oldStatus = String(found.row[5] || '検討中');
 
-    // History に状態変更履歴を追加
-    var historyId = 'HIST-' + generateUuid();
-    historySheet.appendRow([
-      historyId,
-      taskId,
-      nowStr,
-      actor,
-      '状態変更',
-      '状態',
-      oldStatus,
-      newStatus,
+    var memberError = checkMemberName(getActiveMemberNames(ss), actor, '変更者');
+    if (memberError) return { success: false, error: memberError };
+
+    var newRow = found.row.slice();
+    newRow[5] = newStatus;
+    newRow[9] = actor;
+    newRow[10] = nowStr;
+    var historyRow = buildHistoryRow(
+      taskId, nowStr, actor, '状態変更', '状態', oldStatus, newStatus,
       '状態を「' + oldStatus + '」から「' + newStatus + '」に変更'
-    ]);
+    );
+    writeTaskWithHistory(sheets, found.rowIndex, newRow, found.row, [historyRow]);
 
-    // Tasks シート更新
-    targetRow[5] = newStatus;
-    targetRow[9] = actor;
-    targetRow[10] = nowStr;
-    taskSheet.getRange(targetRowIndex, 1, 1, TASK_HEADERS.length).setValues([targetRow]);
-
-    if (typeof SpreadsheetApp !== 'undefined' && SpreadsheetApp.flush) {
-      SpreadsheetApp.flush();
-    }
-
-    var notesMap = getNotesMap(ss);
-
-    var task = {
-      taskId: taskId,
-      title: String(targetRow[1] || ''),
-      description: String(targetRow[2] || ''),
-      periodType: String(targetRow[3] || ''),
-      specifiedDate: formatDateVal(targetRow[4]),
-      status: newStatus,
-      assignee: String(targetRow[6] || ''),
-      createdBy: String(targetRow[7] || ''),
-      createdAt: formatDateTimeVal(targetRow[8]),
-      updatedBy: actor,
-      updatedAt: nowStr,
-      notes: notesMap[taskId] || []
-    };
-
-    return { success: true, task: task };
-  } catch (err) {
-    return { success: false, error: err.message || String(err) };
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
+    return { success: true, task: rowToTask(newRow, getNotesMap(ss)[taskId] || []) };
+  });
 }
 
 /**
- * 変更履歴取得API
- * @param {string} taskId 
+ * 変更履歴取得API (新しい順)
+ * @param {string} taskId
  * @returns {{ success: boolean, history: Array<object> }}
  */
 function getTaskHistory(taskId) {
   try {
-    if (!taskId) return { success: false, error: 'taskId は必須です。' };
-    var ss = getSpreadsheet();
-    if (!ss) return { success: true, history: [] };
-    var historySheet = ss.getSheetByName('History');
+    if (!taskId) return { success: false, error: '対象の予定が指定されていません。' };
+    var historySheet = getSpreadsheet().getSheetByName('History');
     if (!historySheet) return { success: true, history: [] };
     var lastRow = historySheet.getLastRow();
     if (lastRow <= 1) return { success: true, history: [] };
 
     var values = historySheet.getRange(2, 1, lastRow - 1, HISTORY_HEADERS.length).getValues();
     var history = [];
+    var target = String(taskId).trim();
 
-    for (var i = 0; i < values.length; i++) {
+    // History シートは発生順に追記されるため、末尾から読むと新しい順になる
+    for (var i = values.length - 1; i >= 0; i--) {
       var row = values[i];
-      if (String(row[1]).trim() === String(taskId).trim()) {
+      if (String(row[1]).trim() === target) {
         history.push({
           historyId: String(row[0] || ''),
           taskId: String(row[1] || ''),
@@ -1033,18 +737,19 @@ function getTaskHistory(taskId) {
 
     return { success: true, history: history };
   } catch (e) {
-    return { success: false, error: e.message || String(e) };
+    logError('getTaskHistory', e);
+    return { success: false, error: '履歴を読み込めませんでした。もう一度操作してください。' };
   }
 }
 
 /**
  * 有効メンバー一覧取得API (active === true のみ、sortOrder昇順)
+ * @param {object} [ss]
  * @returns {{ success: boolean, members: Array<object> }}
  */
-function getMembers() {
+function getMembers(ss) {
   try {
-    var ss = getSpreadsheet();
-    if (!ss) return { success: true, members: [] };
+    ss = ss || getSpreadsheet();
     var memberSheet = ss.getSheetByName('Members');
     if (!memberSheet) return { success: true, members: [] };
     var lastRow = memberSheet.getLastRow();
@@ -1076,7 +781,8 @@ function getMembers() {
 
     return { success: true, members: members };
   } catch (e) {
-    return { success: false, error: e.message || String(e) };
+    logError('getMembers', e);
+    return { success: false, error: '職員一覧を読み込めませんでした。もう一度操作してください。' };
   }
 }
 
@@ -1091,7 +797,8 @@ if (typeof module !== 'undefined' && module.exports) {
     INITIAL_MEMBERS: INITIAL_MEMBERS,
     setSpreadsheetForTest: setSpreadsheetForTest,
     getSpreadsheet: getSpreadsheet,
-    getLock: getLock,
+    withLock: withLock,
+    writeTaskWithHistory: writeTaskWithHistory,
     generateTaskId: generateTaskId,
     generateUuid: generateUuid,
     getNotesMap: getNotesMap,

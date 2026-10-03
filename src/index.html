@@ -1026,6 +1026,7 @@
             <select id="createCreatedBy" name="createdBy" class="form-control member-select" required>
               <option value="">選択してください</option>
             </select>
+            <p class="form-help">ご自分の名前を選んでください。名前の選択は本人確認ではありません。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -1111,6 +1112,7 @@
             <select id="editUpdatedBy" name="updatedBy" class="form-control member-select" required>
               <option value="">選択してください</option>
             </select>
+            <p class="form-help">ご自分の名前を選んでください。名前の選択は本人確認ではありません。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -1150,6 +1152,7 @@
             <select id="noteActor" name="actor" class="form-control member-select" required>
               <option value="">選択してください</option>
             </select>
+            <p class="form-help">ご自分の名前を選んでください。名前の選択は本人確認ではありません。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -1199,6 +1202,7 @@
             <select id="statusActor" name="actor" class="form-control member-select" required>
               <option value="">選択してください</option>
             </select>
+            <p class="form-help">ご自分の名前を選んでください。名前の選択は本人確認ではありません。</p>
           </div>
         </div>
         <div class="modal-footer">
@@ -1380,13 +1384,15 @@
             google.script.run
               .withSuccessHandler(response => {
                 if (response && response.success === false) {
-                  reject(new Error(response.message || '処理中にエラーが発生しました'));
+                  console.error(`[${methodName}] ${response.error}`);
+                  reject(new Error(response.error || '処理できませんでした。もう一度操作してください。'));
                 } else {
                   resolve(response);
                 }
               })
               .withFailureHandler(err => {
-                reject(new Error(err && err.message ? err.message : String(err)));
+                console.error(`[${methodName}]`, err);
+                reject(new Error('通信できませんでした。もう一度操作してください。'));
               })[methodName](...args);
           } else {
             // ローカルモック処理 (0.2s の遅延で通信をシミュレート)
@@ -2026,7 +2032,7 @@
             } else if (item.actionType === '状態変更') {
               detailText = `${item.beforeValue} → ${item.afterValue}`;
             } else if (item.actionType === '修正') {
-              detailText = `${item.beforeValue} → ${item.afterValue}`;
+              detailText = `${item.fieldName}：${item.beforeValue || '（なし）'} → ${item.afterValue || '（なし）'}`;
             } else {
               detailText = item.afterValue || item.comment || '登録';
             }
