@@ -1,0 +1,2384 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>学校予定共有ボード</title>
+  <style>
+    /* ==========================================================================
+       CSS Variables & Base Styles
+       ========================================================================== */
+    :root {
+      --primary: #1d4ed8;
+      --primary-hover: #1e40af;
+      --primary-light: #eff6ff;
+      --success: #15803d;
+      --success-hover: #166534;
+      --success-light: #f0fdf4;
+      --danger: #b91c1c;
+      --danger-light: #fef2f2;
+      --bg-page: #f1f5f9;
+      --bg-surface: #ffffff;
+      --border-color: #cbd5e1;
+      --border-focus: #3b82f6;
+      --text-main: #0f172a;
+      --text-sub: #475569;
+      --text-muted: #64748b;
+
+      /* 状態ラベル色 */
+      --st-review-bg: #fef3c7;
+      --st-review-text: #92400e;
+      --st-review-border: #fcd34d;
+
+      --st-progress-bg: #dbeafe;
+      --st-progress-text: #1e40af;
+      --st-progress-border: #93c5fd;
+
+      --st-pending-bg: #f3e8ff;
+      --st-pending-text: #6b21a8;
+      --st-pending-border: #d8b4fe;
+
+      --st-completed-bg: #e2e8f0;
+      --st-completed-text: #475569;
+      --st-completed-border: #cbd5e1;
+
+      --st-cancelled-bg: #e2e8f0;
+      --st-cancelled-text: #64748b;
+      --st-cancelled-border: #cbd5e1;
+
+      --st-revoked-bg: #e2e8f0;
+      --st-revoked-text: #64748b;
+      --st-revoked-border: #cbd5e1;
+
+      --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+      --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+
+      --radius-sm: 6px;
+      --radius-md: 8px;
+      --radius-lg: 12px;
+      --radius-full: 9999px;
+
+      --min-tap: 44px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+      background-color: var(--bg-page);
+      color: var(--text-main);
+      line-height: 1.5;
+      min-width: 320px;
+      overflow-x: hidden;
+      padding-bottom: 60px;
+    }
+
+    /* ==========================================================================
+       Header & Navigation
+       ========================================================================== */
+    .header {
+      background-color: var(--bg-surface);
+      border-bottom: 2px solid #e2e8f0;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .header-inner {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 12px 16px;
+    }
+
+    .header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .app-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .app-title-icon {
+      font-size: 1.4rem;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-reload {
+      min-height: var(--min-tap);
+      min-width: var(--min-tap);
+      padding: 0 12px;
+      background-color: #f1f5f9;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      color: var(--text-sub);
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: background-color 0.15s;
+    }
+
+    .btn-reload:hover {
+      background-color: #e2e8f0;
+    }
+
+    /* メイン操作バー */
+    .main-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .nav-tabs {
+      display: flex;
+      background-color: #e2e8f0;
+      padding: 3px;
+      border-radius: var(--radius-md);
+      gap: 2px;
+      flex: 1 1 auto;
+      min-width: 250px;
+    }
+
+    .nav-tab-btn {
+      flex: 1;
+      min-height: var(--min-tap);
+      background: transparent;
+      border: none;
+      border-radius: var(--radius-sm);
+      color: var(--text-sub);
+      font-weight: 600;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+      padding: 0 8px;
+    }
+
+    .nav-tab-btn.active {
+      background-color: var(--bg-surface);
+      color: var(--primary);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .btn-add-task {
+      min-height: var(--min-tap);
+      background-color: var(--success);
+      color: #ffffff;
+      border: none;
+      border-radius: var(--radius-md);
+      padding: 0 18px;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      box-shadow: var(--shadow-sm);
+      transition: background-color 0.15s;
+      flex-shrink: 0;
+    }
+
+    .btn-add-task:hover {
+      background-color: var(--success-hover);
+    }
+
+    /* ==========================================================================
+       Main Content Container
+       ========================================================================== */
+    .container {
+      max-width: 1000px;
+      margin: 16px auto;
+      padding: 0 16px;
+    }
+
+    .view-info-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      padding: 8px 12px;
+      background-color: #e2e8f0;
+      border-radius: var(--radius-md);
+      font-size: 0.9rem;
+      color: var(--text-sub);
+    }
+
+    .view-info-bar .view-title {
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .view-info-bar .task-count {
+      font-weight: 600;
+    }
+
+    /* ==========================================================================
+       Task List & Cards
+       ========================================================================== */
+    .task-list {
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .task-card {
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow-sm);
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      transition: box-shadow 0.15s, border-color 0.15s;
+    }
+
+    .task-card:hover {
+      box-shadow: var(--shadow-md);
+      border-color: #94a3b8;
+    }
+
+    /* 完了・中止・取消タスクの落ち着いた表示 */
+    .task-card.task-muted {
+      background-color: #f8fafc;
+      border-color: #e2e8f0;
+      opacity: 0.85;
+    }
+
+    .task-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .task-badges {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      font-size: 0.825rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .badge-status.st-review {
+      background-color: var(--st-review-bg);
+      color: var(--st-review-text);
+      border-color: var(--st-review-border);
+    }
+
+    .badge-status.st-progress {
+      background-color: var(--st-progress-bg);
+      color: var(--st-progress-text);
+      border-color: var(--st-progress-border);
+    }
+
+    .badge-status.st-pending {
+      background-color: var(--st-pending-bg);
+      color: var(--st-pending-text);
+      border-color: var(--st-pending-border);
+    }
+
+    .badge-status.st-completed {
+      background-color: var(--st-completed-bg);
+      color: var(--st-completed-text);
+      border-color: var(--st-completed-border);
+    }
+
+    .badge-status.st-cancelled {
+      background-color: var(--st-cancelled-bg);
+      color: var(--st-cancelled-text);
+      border-color: var(--st-cancelled-border);
+    }
+
+    .badge-status.st-revoked {
+      background-color: var(--st-revoked-bg);
+      color: var(--st-revoked-text);
+      border-color: var(--st-revoked-border);
+    }
+
+    .badge-period {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 0.85rem;
+      color: var(--text-sub);
+      background-color: #f1f5f9;
+      padding: 4px 10px;
+      border-radius: var(--radius-md);
+      font-weight: 600;
+    }
+
+    .task-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+      word-break: break-word;
+      line-height: 1.4;
+    }
+
+    .task-desc {
+      font-size: 0.95rem;
+      color: #334155;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background-color: #f8fafc;
+      padding: 10px 12px;
+      border-radius: var(--radius-sm);
+      border-left: 3px solid #cbd5e1;
+    }
+
+    /* 追記一覧 */
+    .task-notes-section {
+      background-color: #f8fafc;
+      border: 1px dashed var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
+      font-size: 0.9rem;
+    }
+
+    .task-notes-header {
+      font-weight: 700;
+      color: var(--text-sub);
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .task-notes-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .task-note-item {
+      padding: 6px 8px;
+      background-color: #ffffff;
+      border-radius: var(--radius-sm);
+      border-left: 3px solid var(--primary);
+      font-size: 0.875rem;
+      word-break: break-word;
+    }
+
+    .task-note-meta {
+      font-weight: 600;
+      color: var(--text-sub);
+      font-size: 0.8rem;
+      margin-bottom: 2px;
+    }
+
+    /* メタ情報 & 担当者 */
+    .task-meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      border-top: 1px solid #f1f5f9;
+      padding-top: 8px;
+    }
+
+    .task-assignee {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .task-updated {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* カード操作ボタン群 */
+    .task-card-actions {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+    @media (max-width: 600px) {
+      .task-card-actions {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .btn-card-action {
+      min-height: var(--min-tap);
+      padding: 6px 8px;
+      border-radius: var(--radius-md);
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: 1px solid var(--border-color);
+      background-color: #ffffff;
+      color: var(--text-main);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+
+    .btn-card-action:hover {
+      background-color: #f1f5f9;
+      border-color: #94a3b8;
+    }
+
+    .btn-card-action.btn-note {
+      color: #0369a1;
+      border-color: #bae6fd;
+      background-color: #f0f9ff;
+    }
+    .btn-card-action.btn-note:hover {
+      background-color: #e0f2fe;
+    }
+
+    .btn-card-action.btn-edit {
+      color: #4338ca;
+      border-color: #c7d2fe;
+      background-color: #eef2ff;
+    }
+    .btn-card-action.btn-edit:hover {
+      background-color: #e0e7ff;
+    }
+
+    .btn-card-action.btn-status {
+      color: #92400e;
+      border-color: #fde68a;
+      background-color: #fffbeb;
+    }
+    .btn-card-action.btn-status:hover {
+      background-color: #fef3c7;
+    }
+
+    .btn-card-action.btn-history {
+      color: var(--text-sub);
+    }
+
+    /* 空状態表示 */
+    .empty-state {
+      text-align: center;
+      padding: 48px 16px;
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      border: 1px dashed var(--border-color);
+      color: var(--text-muted);
+    }
+
+    .empty-state-icon {
+      font-size: 2.5rem;
+      margin-bottom: 12px;
+    }
+
+    .empty-state-text {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-sub);
+    }
+
+    /* ローディングスピナー */
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 16px;
+      color: var(--text-muted);
+      gap: 12px;
+    }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid #cbd5e1;
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ==========================================================================
+       Modals
+       ========================================================================== */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(15, 23, 42, 0.5);
+      backdrop-filter: blur(2px);
+      z-index: 100;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      overflow-y: auto;
+    }
+
+    .modal-backdrop.is-open {
+      display: flex;
+    }
+
+    .modal-dialog {
+      background-color: var(--bg-surface);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-lg);
+      width: 100%;
+      max-width: 540px;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: modalFadeIn 0.2s ease-out;
+    }
+
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: scale(0.96);
+      }
+      to {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .modal-header {
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background-color: #f8fafc;
+    }
+
+    .modal-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .btn-close-modal {
+      min-width: 36px;
+      min-height: 36px;
+      background: transparent;
+      border: none;
+      font-size: 1.5rem;
+      line-height: 1;
+      color: var(--text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-close-modal:hover {
+      background-color: #e2e8f0;
+      color: var(--text-main);
+    }
+
+    .modal-body {
+      padding: 20px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .modal-target-summary {
+      background-color: #eff6ff;
+      border: 1px solid #bfdbfe;
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      font-size: 0.9rem;
+    }
+
+    .modal-target-title {
+      font-weight: 700;
+      color: var(--primary);
+    }
+
+    .modal-footer {
+      padding: 14px 20px;
+      border-top: 1px solid var(--border-color);
+      background-color: #f8fafc;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+
+    /* フォーム要素 */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-label {
+      font-size: 0.9rem;
+      font-weight: 700;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .required-badge {
+      font-size: 0.75rem;
+      color: #dc2626;
+      background-color: #fee2e2;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-weight: 700;
+    }
+
+    .optional-badge {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      background-color: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      font-weight: 500;
+    }
+
+    .form-control {
+      width: 100%;
+      min-height: var(--min-tap);
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      color: var(--text-main);
+      background-color: #ffffff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+
+    .form-control:focus {
+      border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+
+    textarea.form-control {
+      min-height: 90px;
+      resize: vertical;
+      line-height: 1.4;
+    }
+
+    .form-help {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    .btn-modal {
+      min-height: var(--min-tap);
+      padding: 0 18px;
+      border-radius: var(--radius-md);
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid transparent;
+      transition: all 0.15s;
+    }
+
+    .btn-modal-cancel {
+      background-color: #ffffff;
+      border-color: var(--border-color);
+      color: var(--text-sub);
+    }
+
+    .btn-modal-cancel:hover {
+      background-color: #f1f5f9;
+    }
+
+    .btn-modal-submit {
+      background-color: var(--primary);
+      color: #ffffff;
+    }
+
+    .btn-modal-submit:hover {
+      background-color: var(--primary-hover);
+    }
+
+    .btn-modal-submit:disabled,
+    .btn-modal-cancel:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    /* 履歴タイムライン */
+    .history-timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-height: 60vh;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .history-item {
+      background-color: #f8fafc;
+      border: 1px solid var(--border-color);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .history-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 0.85rem;
+    }
+
+    .history-type {
+      font-weight: 700;
+      color: var(--primary);
+      background-color: #dbeafe;
+      padding: 2px 8px;
+      border-radius: var(--radius-full);
+    }
+
+    .history-actor {
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .history-time {
+      color: var(--text-muted);
+    }
+
+    .history-detail {
+      font-size: 0.9rem;
+      color: var(--text-main);
+      white-space: pre-wrap;
+      word-break: break-word;
+      background-color: #ffffff;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid #e2e8f0;
+      margin-top: 4px;
+    }
+
+    /* ==========================================================================
+       Toast & Banner Notification
+       ========================================================================== */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: calc(100% - 32px);
+      max-width: 440px;
+      pointer-events: none;
+    }
+
+    .toast {
+      pointer-events: auto;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      animation: toastSlideUp 0.25s ease-out;
+    }
+
+    @keyframes toastSlideUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .toast.toast-success {
+      background-color: #15803d;
+      color: #ffffff;
+    }
+
+    .toast.toast-error {
+      background-color: #b91c1c;
+      color: #ffffff;
+    }
+
+    .toast.toast-info {
+      background-color: #1e293b;
+      color: #ffffff;
+    }
+
+    .toast-close {
+      background: transparent;
+      border: none;
+      color: #ffffff;
+      opacity: 0.8;
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0 4px;
+      line-height: 1;
+    }
+
+    .toast-close:hover {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ==========================================================================
+       Header
+       ========================================================================== -->
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-top">
+        <div class="app-title">
+          <span class="app-title-icon">🏫</span>
+          <span>学校予定共有ボード</span>
+        </div>
+        <div class="header-actions">
+          <button id="btnReload" class="btn-reload" title="最新情報に更新">
+            <span>🔄</span>
+            <span>更新</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- メイン操作バー -->
+      <div class="main-toolbar">
+        <nav class="nav-tabs" role="tablist">
+          <button class="nav-tab-btn active" data-view="today" role="tab">今日</button>
+          <button class="nav-tab-btn" data-view="this_week" role="tab">今週</button>
+          <button class="nav-tab-btn" data-view="this_month" role="tab">今月</button>
+          <button class="nav-tab-btn" data-view="annual" role="tab">年間</button>
+        </nav>
+        <button id="btnOpenCreate" class="btn-add-task">
+          <span>＋</span>
+          <span>予定を追加</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       Main Container
+       ========================================================================== -->
+  <main class="container">
+    <div class="view-info-bar">
+      <span id="viewTitle" class="view-title">今日の予定</span>
+      <span id="taskCount" class="task-count">0 件</span>
+    </div>
+
+    <!-- 予定一覧エリア -->
+    <div id="taskList" class="task-list">
+      <div class="loading-container">
+        <div class="spinner"></div>
+        <div>予定データを読み込んでいます...</div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ==========================================================================
+       Modals
+       ========================================================================== -->
+
+  <!-- 1. 新規追加モーダル -->
+  <div id="modalCreate" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalCreateTitle">
+      <div class="modal-header">
+        <h2 id="modalCreateTitle" class="modal-title">新規予定の追加</h2>
+        <button type="button" class="btn-close-modal" data-close-modal="modalCreate">×</button>
+      </div>
+      <form id="formCreate">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="createTitle">
+              タイトル <span class="required-badge">必須</span>
+            </label>
+            <input type="text" id="createTitle" name="title" class="form-control" placeholder="例: 職員会議、運動会準備" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="createPeriodType">
+              予定時期 <span class="required-badge">必須</span>
+            </label>
+            <select id="createPeriodType" name="periodType" class="form-control" required>
+              <option value="今日" selected>今日</option>
+              <option value="今週">今週</option>
+              <option value="今月">今月</option>
+              <option value="日付指定">日付指定</option>
+              <option value="年間">年間</option>
+              <option value="未定">未定</option>
+            </select>
+          </div>
+
+          <div id="createDateGroup" class="form-group" style="display: none;">
+            <label class="form-label" for="createSpecifiedDate">
+              日付 <span class="required-badge">日付指定時必須</span>
+            </label>
+            <input type="date" id="createSpecifiedDate" name="specifiedDate" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="createDescription">
+              内容 <span class="optional-badge">任意</span>
+            </label>
+            <textarea id="createDescription" name="description" class="form-control" placeholder="場所、持ち物、議題などの詳細を入力"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="createStatus">
+              状態 <span class="required-badge">必須</span>
+            </label>
+            <select id="createStatus" name="status" class="form-control" required>
+              <option value="検討中" selected>検討中</option>
+              <option value="進行中">進行中</option>
+              <option value="保留">保留</option>
+              <option value="完了">完了</option>
+              <option value="中止">中止</option>
+              <option value="取消">取消</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="createAssignee">
+              担当者 <span class="optional-badge">任意</span>
+            </label>
+            <select id="createAssignee" name="assignee" class="form-control member-select">
+              <option value="">(未設定)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="createCreatedBy">
+              登録者 <span class="required-badge">必須</span>
+            </label>
+            <select id="createCreatedBy" name="createdBy" class="form-control member-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-modal btn-modal-cancel" data-close-modal="modalCreate">キャンセル</button>
+          <button type="submit" class="btn-modal btn-modal-submit" id="btnSubmitCreate">追加する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 修正モーダル -->
+  <div id="modalEdit" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalEditTitle">
+      <div class="modal-header">
+        <h2 id="modalEditTitle" class="modal-title">予定の修正</h2>
+        <button type="button" class="btn-close-modal" data-close-modal="modalEdit">×</button>
+      </div>
+      <form id="formEdit">
+        <input type="hidden" id="editTaskId" name="taskId">
+        <div class="modal-body">
+          <div class="form-group">
+            <label class="form-label" for="editTitle">
+              タイトル <span class="required-badge">必須</span>
+            </label>
+            <input type="text" id="editTitle" name="title" class="form-control" required>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editPeriodType">
+              予定時期 <span class="required-badge">必須</span>
+            </label>
+            <select id="editPeriodType" name="periodType" class="form-control" required>
+              <option value="今日">今日</option>
+              <option value="今週">今週</option>
+              <option value="今月">今月</option>
+              <option value="日付指定">日付指定</option>
+              <option value="年間">年間</option>
+              <option value="未定">未定</option>
+            </select>
+          </div>
+
+          <div id="editDateGroup" class="form-group" style="display: none;">
+            <label class="form-label" for="editSpecifiedDate">
+              日付 <span class="required-badge">日付指定時必須</span>
+            </label>
+            <input type="date" id="editSpecifiedDate" name="specifiedDate" class="form-control">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editDescription">
+              内容 <span class="optional-badge">任意</span>
+            </label>
+            <textarea id="editDescription" name="description" class="form-control"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editStatus">
+              状態 <span class="required-badge">必須</span>
+            </label>
+            <select id="editStatus" name="status" class="form-control" required>
+              <option value="検討中">検討中</option>
+              <option value="進行中">進行中</option>
+              <option value="保留">保留</option>
+              <option value="完了">完了</option>
+              <option value="中止">中止</option>
+              <option value="取消">取消</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editAssignee">
+              担当者 <span class="optional-badge">任意</span>
+            </label>
+            <select id="editAssignee" name="assignee" class="form-control member-select">
+              <option value="">(未設定)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="editUpdatedBy">
+              更新者 <span class="required-badge">必須</span>
+            </label>
+            <select id="editUpdatedBy" name="updatedBy" class="form-control member-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-modal btn-modal-cancel" data-close-modal="modalEdit">キャンセル</button>
+          <button type="submit" class="btn-modal btn-modal-submit" id="btnSubmitEdit">保存する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 3. 追記モーダル -->
+  <div id="modalNote" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalNoteTitle">
+      <div class="modal-header">
+        <h2 id="modalNoteTitle" class="modal-title">予定への追記</h2>
+        <button type="button" class="btn-close-modal" data-close-modal="modalNote">×</button>
+      </div>
+      <form id="formNote">
+        <input type="hidden" id="noteTaskId" name="taskId">
+        <div class="modal-body">
+          <div class="modal-target-summary">
+            <div>対象予定:</div>
+            <div id="noteTargetTitle" class="modal-target-title"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="noteContent">
+              追記内容 <span class="required-badge">必須</span>
+            </label>
+            <textarea id="noteContent" name="note" class="form-control" placeholder="進捗状況、変更点、連絡事項などを入力" required></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="noteActor">
+              追記者 <span class="required-badge">必須</span>
+            </label>
+            <select id="noteActor" name="actor" class="form-control member-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-modal btn-modal-cancel" data-close-modal="modalNote">キャンセル</button>
+          <button type="submit" class="btn-modal btn-modal-submit" id="btnSubmitNote">追記する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 状態変更モーダル -->
+  <div id="modalStatus" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalStatusTitle">
+      <div class="modal-header">
+        <h2 id="modalStatusTitle" class="modal-title">状態の変更</h2>
+        <button type="button" class="btn-close-modal" data-close-modal="modalStatus">×</button>
+      </div>
+      <form id="formStatus">
+        <input type="hidden" id="statusTaskId" name="taskId">
+        <div class="modal-body">
+          <div class="modal-target-summary">
+            <div>対象予定:</div>
+            <div id="statusTargetTitle" class="modal-target-title"></div>
+            <div style="margin-top: 4px; font-size: 0.85rem; color: var(--text-sub);">
+              現在の状態: <span id="statusCurrentBadge" class="badge-status"></span>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="statusNewStatus">
+              新しい状態 <span class="required-badge">必須</span>
+            </label>
+            <select id="statusNewStatus" name="status" class="form-control" required>
+              <option value="検討中">検討中</option>
+              <option value="進行中">進行中</option>
+              <option value="保留">保留</option>
+              <option value="完了">完了</option>
+              <option value="中止">中止</option>
+              <option value="取消">取消</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="statusActor">
+              変更者 <span class="required-badge">必須</span>
+            </label>
+            <select id="statusActor" name="actor" class="form-control member-select" required>
+              <option value="">選択してください</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-modal btn-modal-cancel" data-close-modal="modalStatus">キャンセル</button>
+          <button type="submit" class="btn-modal btn-modal-submit" id="btnSubmitStatus">変更する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. 履歴モーダル -->
+  <div id="modalHistory" class="modal-backdrop">
+    <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="modalHistoryTitle">
+      <div class="modal-header">
+        <h2 id="modalHistoryTitle" class="modal-title">変更履歴</h2>
+        <button type="button" class="btn-close-modal" data-close-modal="modalHistory">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-target-summary">
+          <div>対象予定:</div>
+          <div id="historyTargetTitle" class="modal-target-title"></div>
+        </div>
+
+        <div id="historyListContainer" class="history-timeline">
+          <div class="loading-container">
+            <div class="spinner"></div>
+            <div>履歴を読み込んでいます...</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-modal btn-modal-cancel" data-close-modal="modalHistory">閉じる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       Toast Container
+       ========================================================================== -->
+  <div id="toastContainer" class="toast-container" aria-live="polite"></div>
+
+  <!-- ==========================================================================
+       Application JavaScript (Vanilla JS)
+       ========================================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // ========================================================================
+      // 1. Application State & Storage
+      // ========================================================================
+      const state = {
+        currentView: 'today', // today | this_week | this_month | annual
+        tasks: [],
+        members: [],
+        serverTime: '',
+        isLoading: false,
+        cachedTasksMap: new Map() // taskId -> Task
+      };
+
+      // 直近選択した操作者を localStorage で記憶するキー
+      const LAST_ACTOR_STORAGE_KEY = 'school_board_last_actor';
+
+      // ========================================================================
+      // 2. GAS API Client / Local Mock Fallback
+      // ========================================================================
+      const isGasEnvironment = Boolean(
+        typeof google !== 'undefined' &&
+        google.script &&
+        google.script.run
+      );
+
+      // ローカルモック用データ
+      const mockStorage = {
+        members: [
+          { memberId: 'MEM-0001', name: '校長', active: true, sortOrder: 1 },
+          { memberId: 'MEM-0002', name: '教頭', active: true, sortOrder: 2 },
+          { memberId: 'MEM-0003', name: '教務主任', active: true, sortOrder: 3 },
+          { memberId: 'MEM-0004', name: '1年主任', active: true, sortOrder: 4 },
+          { memberId: 'MEM-0005', name: '2年主任', active: true, sortOrder: 5 },
+          { memberId: 'MEM-0006', name: '3年主任', active: true, sortOrder: 6 },
+          { memberId: 'MEM-0007', name: '養護教諭', active: true, sortOrder: 7 },
+          { memberId: 'MEM-0008', name: '事務職員', active: true, sortOrder: 8 }
+        ],
+        tasks: [
+          {
+            taskId: 'TASK-20261003-0001',
+            title: '全校朝礼・生活指導',
+            description: '体育館にて実施。寒暖差に注意し換気を行うこと。',
+            periodType: '今日',
+            specifiedDate: '',
+            status: '進行中',
+            assignee: '教務主任',
+            createdBy: '教頭',
+            createdAt: '2026/10/03 08:15',
+            updatedBy: '教務主任',
+            updatedAt: '2026/10/03 08:30',
+            notes: [
+              { timestamp: '2026/10/03 08:30', actor: '教務主任', note: '体育館の音響設備点検完了' }
+            ]
+          },
+          {
+            taskId: 'TASK-20261003-0002',
+            title: '運動会プログラム最終確認会議',
+            description: '各学年主任は進行表の修正箇所を持ち寄ること。職員室にて。',
+            periodType: '今週',
+            specifiedDate: '2026-10-06',
+            status: '検討中',
+            assignee: '1年主任',
+            createdBy: '教務主任',
+            createdAt: '2026/10/02 16:00',
+            updatedBy: '教務主任',
+            updatedAt: '2026/10/02 16:00',
+            notes: []
+          },
+          {
+            taskId: 'TASK-20261003-0003',
+            title: '就学時健康診断の案内配布',
+            description: '対象家庭への案内プリント印刷および封入作業。',
+            periodType: '今月',
+            specifiedDate: '',
+            status: '保留',
+            assignee: '養護教諭',
+            createdBy: '養護教諭',
+            createdAt: '2026/10/01 10:00',
+            updatedBy: '教頭',
+            updatedAt: '2026/10/02 11:20',
+            notes: [
+              { timestamp: '2026/10/02 11:20', actor: '教頭', note: '教育委員会からの確認待ちのため一時保留' }
+            ]
+          },
+          {
+            taskId: 'TASK-20261003-0004',
+            title: '校舎定期清掃',
+            description: '業者によるワックスがけ完了。',
+            periodType: '今日',
+            specifiedDate: '',
+            status: '完了',
+            assignee: '事務職員',
+            createdBy: '事務職員',
+            createdAt: '2026/10/01 09:00',
+            updatedBy: '事務職員',
+            updatedAt: '2026/10/03 07:45',
+            notes: []
+          }
+        ],
+        history: [
+          {
+            historyId: 'HIST-0001',
+            taskId: 'TASK-20261003-0001',
+            timestamp: '2026/10/03 08:15',
+            actor: '教頭',
+            actionType: '新規登録',
+            fieldName: '全体',
+            beforeValue: '',
+            afterValue: '登録完了',
+            comment: ''
+          },
+          {
+            historyId: 'HIST-0002',
+            taskId: 'TASK-20261003-0001',
+            timestamp: '2026/10/03 08:30',
+            actor: '教務主任',
+            actionType: '追記',
+            fieldName: '追記',
+            beforeValue: '',
+            afterValue: '',
+            comment: '体育館の音響設備点検完了'
+          }
+        ]
+      };
+
+      /**
+       * GAS API 呼び出し抽象化ラッパー
+       */
+      function callApi(methodName, ...args) {
+        return new Promise((resolve, reject) => {
+          if (isGasEnvironment) {
+            google.script.run
+              .withSuccessHandler(response => {
+                if (response && response.success === false) {
+                  reject(new Error(response.message || '処理中にエラーが発生しました'));
+                } else {
+                  resolve(response);
+                }
+              })
+              .withFailureHandler(err => {
+                reject(new Error(err && err.message ? err.message : String(err)));
+              })[methodName](...args);
+          } else {
+            // ローカルモック処理 (0.2s の遅延で通信をシミュレート)
+            setTimeout(() => {
+              try {
+                const res = mockExecute(methodName, args);
+                resolve(res);
+              } catch (e) {
+                reject(e);
+              }
+            }, 200);
+          }
+        });
+      }
+
+      function mockExecute(methodName, args) {
+        const nowStr = formatDateTime(new Date());
+
+        switch (methodName) {
+          case 'getInitialData':
+            return {
+              success: true,
+              members: mockStorage.members.filter(m => m.active),
+              tasks: mockFilterTasks(state.currentView),
+              serverTime: nowStr,
+              currentView: state.currentView
+            };
+
+          case 'getTasks': {
+            const viewType = args[0] || 'today';
+            return {
+              success: true,
+              tasks: mockFilterTasks(viewType)
+            };
+          }
+
+          case 'createTask': {
+            const data = args[0];
+            const newId = 'TASK-' + Date.now();
+            const newTask = {
+              taskId: newId,
+              title: data.title,
+              periodType: data.periodType,
+              specifiedDate: data.specifiedDate || '',
+              description: data.description || '',
+              status: data.status || '検討中',
+              assignee: data.assignee || '',
+              createdBy: data.createdBy,
+              createdAt: nowStr,
+              updatedBy: data.createdBy,
+              updatedAt: nowStr,
+              notes: []
+            };
+            mockStorage.tasks.unshift(newTask);
+            mockStorage.history.unshift({
+              historyId: 'HIST-' + Date.now(),
+              taskId: newId,
+              timestamp: nowStr,
+              actor: data.createdBy,
+              actionType: '新規登録',
+              fieldName: '全体',
+              beforeValue: '',
+              afterValue: '登録完了',
+              comment: ''
+            });
+            return { success: true, task: newTask };
+          }
+
+          case 'updateTask': {
+            const taskId = args[0];
+            const data = args[1];
+            const task = mockStorage.tasks.find(t => t.taskId === taskId);
+            if (!task) throw new Error('対象の予定が見つかりません');
+
+            mockStorage.history.unshift({
+              historyId: 'HIST-' + Date.now(),
+              taskId: taskId,
+              timestamp: nowStr,
+              actor: data.updatedBy,
+              actionType: '修正',
+              fieldName: '全体',
+              beforeValue: `[${task.status}] ${task.title}`,
+              afterValue: `[${data.status}] ${data.title}`,
+              comment: ''
+            });
+
+            task.title = data.title;
+            task.periodType = data.periodType;
+            task.specifiedDate = data.specifiedDate || '';
+            task.description = data.description || '';
+            task.status = data.status;
+            task.assignee = data.assignee || '';
+            task.updatedBy = data.updatedBy;
+            task.updatedAt = nowStr;
+
+            return { success: true, task: task };
+          }
+
+          case 'addTaskNote': {
+            const taskId = args[0];
+            const data = args[1];
+            const task = mockStorage.tasks.find(t => t.taskId === taskId);
+            if (!task) throw new Error('対象の予定が見つかりません');
+
+            if (!Array.isArray(task.notes)) task.notes = [];
+            task.notes.push({
+              timestamp: nowStr,
+              actor: data.actor,
+              note: data.note
+            });
+            task.updatedBy = data.actor;
+            task.updatedAt = nowStr;
+
+            mockStorage.history.unshift({
+              historyId: 'HIST-' + Date.now(),
+              taskId: taskId,
+              timestamp: nowStr,
+              actor: data.actor,
+              actionType: '追記',
+              fieldName: '追記',
+              beforeValue: '',
+              afterValue: '',
+              comment: data.note
+            });
+
+            return { success: true, task: task };
+          }
+
+          case 'changeTaskStatus': {
+            const taskId = args[0];
+            const data = args[1];
+            const task = mockStorage.tasks.find(t => t.taskId === taskId);
+            if (!task) throw new Error('対象の予定が見つかりません');
+
+            const oldStatus = task.status;
+            task.status = data.status;
+            task.updatedBy = data.actor;
+            task.updatedAt = nowStr;
+
+            mockStorage.history.unshift({
+              historyId: 'HIST-' + Date.now(),
+              taskId: taskId,
+              timestamp: nowStr,
+              actor: data.actor,
+              actionType: '状態変更',
+              fieldName: 'status',
+              beforeValue: oldStatus,
+              afterValue: data.status,
+              comment: ''
+            });
+
+            return { success: true, task: task };
+          }
+
+          case 'getTaskHistory': {
+            const taskId = args[0];
+            const history = mockStorage.history.filter(h => h.taskId === taskId);
+            return { success: true, history: history };
+          }
+
+          case 'getMembers':
+            return {
+              success: true,
+              members: mockStorage.members.filter(m => m.active)
+            };
+
+          default:
+            throw new Error(`未定義のAPIメソッド: ${methodName}`);
+        }
+      }
+
+      function mockFilterTasks(viewType) {
+        if (viewType === 'annual') {
+          return [...mockStorage.tasks];
+        }
+        if (viewType === 'today') {
+          return mockStorage.tasks.filter(t => t.periodType === '今日');
+        }
+        if (viewType === 'this_week') {
+          return mockStorage.tasks.filter(t => t.periodType === '今日' || t.periodType === '今週');
+        }
+        if (viewType === 'this_month') {
+          return mockStorage.tasks.filter(t => t.periodType === '今日' || t.periodType === '今週' || t.periodType === '今月');
+        }
+        return [...mockStorage.tasks];
+      }
+
+      // ========================================================================
+      // 3. UI Helpers & Utility Functions
+      // ========================================================================
+
+      /**
+       * HTML 特殊文字のエスケープ（XSS対策）
+       */
+      function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#39;');
+      }
+
+      /**
+       * 日時フォーマット YYYY/MM/DD HH:mm
+       */
+      function formatDateTime(d) {
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hour = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${year}/${month}/${day} ${hour}:${min}`;
+      }
+
+      /**
+       * 状態に対応するCSSクラス名を取得
+       */
+      function getStatusClass(status) {
+        switch (status) {
+          case '検討中': return 'st-review';
+          case '進行中': return 'st-progress';
+          case '保留':   return 'st-pending';
+          case '完了':   return 'st-completed';
+          case '中止':   return 'st-cancelled';
+          case '取消':   return 'st-revoked';
+          default:       return 'st-review';
+        }
+      }
+
+      /**
+       * 完了・中止・取消かどうか判定（落ち着いた表示にするか）
+       */
+      function isMutedStatus(status) {
+        return status === '完了' || status === '中止' || status === '取消';
+      }
+
+      /**
+       * 予定時期の表示文字列を整形
+       */
+      function formatPeriodLabel(task) {
+        if (task.periodType === '日付指定' && task.specifiedDate) {
+          // 日付文字列を YYYY/MM/DD 形式に成形
+          const formatted = task.specifiedDate.replace(/-/g, '/');
+          return `📅 ${formatted}`;
+        }
+        return `📅 ${task.periodType || '未定'}`;
+      }
+
+      /**
+       * トースト通知の表示
+       */
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast toast-${type}`;
+
+        const textSpan = document.createElement('span');
+        textSpan.textContent = message;
+
+        const closeBtn = document.createElement('button');
+        closeBtn.className = 'toast-close';
+        closeBtn.innerHTML = '&times;';
+        closeBtn.setAttribute('aria-label', '閉じる');
+        closeBtn.onclick = () => removeToast(toast);
+
+        toast.appendChild(textSpan);
+        toast.appendChild(closeBtn);
+        container.appendChild(toast);
+
+        const timer = setTimeout(() => {
+          removeToast(toast);
+        }, 4000);
+
+        function removeToast(el) {
+          clearTimeout(timer);
+          el.style.opacity = '0';
+          el.style.transform = 'translateY(12px)';
+          el.style.transition = 'all 0.2s ease-out';
+          setTimeout(() => {
+            if (el.parentNode) el.parentNode.removeChild(el);
+          }, 200);
+        }
+      }
+
+      /**
+       * 二重送信防止（指示書第25項）
+       * ボタンを disabled にし、ローディング表示に変更する
+       */
+      function setButtonLoading(button, isLoading, loadingText = '送信中...') {
+        if (!button) return;
+        if (isLoading) {
+          button.dataset.originalText = button.innerHTML;
+          button.disabled = true;
+          button.innerHTML = `<span>⏳</span> <span>${loadingText}</span>`;
+        } else {
+          button.disabled = false;
+          if (button.dataset.originalText) {
+            button.innerHTML = button.dataset.originalText;
+          }
+        }
+      }
+
+      /**
+       * 直近の選択操作者を localStorage に保存 / 取得
+       */
+      function saveLastActor(actorName) {
+        if (!actorName) return;
+        try {
+          localStorage.setItem(LAST_ACTOR_STORAGE_KEY, actorName);
+        } catch (e) {
+          // localStorage 使用不可環境でのサイレントフォールバック
+        }
+      }
+
+      function getLastActor() {
+        try {
+          return localStorage.getItem(LAST_ACTOR_STORAGE_KEY) || '';
+        } catch (e) {
+          return '';
+        }
+      }
+
+      /**
+       * メンバープルダウンの選択肢を一括更新
+       */
+      function updateMemberSelects() {
+        const selects = document.querySelectorAll('.member-select');
+        const lastActor = getLastActor();
+
+        selects.forEach(select => {
+          const isRequired = select.hasAttribute('required');
+          const currentValue = select.value;
+
+          select.innerHTML = '';
+          if (!isRequired) {
+            const emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = '(未設定)';
+            select.appendChild(emptyOpt);
+          } else {
+            const placeholderOpt = document.createElement('option');
+            placeholderOpt.value = '';
+            placeholderOpt.textContent = '選択してください';
+            select.appendChild(placeholderOpt);
+          }
+
+          state.members.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.name;
+            opt.textContent = m.name;
+            select.appendChild(opt);
+          });
+
+          // 復元または直近操作者の初期選択
+          if (currentValue && state.members.some(m => m.name === currentValue)) {
+            select.value = currentValue;
+          } else if (isRequired && lastActor && state.members.some(m => m.name === lastActor)) {
+            select.value = lastActor;
+          }
+        });
+      }
+
+      // ========================================================================
+      // 4. Modal Management
+      // ========================================================================
+      function openModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.classList.add('is-open');
+        document.body.style.overflow = 'hidden';
+      }
+
+      function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.classList.remove('is-open');
+        document.body.style.overflow = '';
+      }
+
+      // モーダル外部クリック & 閉じるボタンのイベント登録
+      document.querySelectorAll('.modal-backdrop').forEach(backdrop => {
+        backdrop.addEventListener('click', (e) => {
+          if (e.target === backdrop) {
+            closeModal(backdrop.id);
+          }
+        });
+      });
+
+      document.querySelectorAll('[data-close-modal]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const targetModalId = btn.getAttribute('data-close-modal');
+          closeModal(targetModalId);
+        });
+      });
+
+      // Escape キーでモーダルを閉じる
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          const openModals = document.querySelectorAll('.modal-backdrop.is-open');
+          openModals.forEach(m => closeModal(m.id));
+        }
+      });
+
+      // ========================================================================
+      // 5. Card & List Rendering
+      // ========================================================================
+      const viewTitleMap = {
+        today: '今日の予定',
+        this_week: '今週の予定',
+        this_month: '今月の予定',
+        annual: '年間の予定'
+      };
+
+      function renderTasks() {
+        const taskListEl = document.getElementById('taskList');
+        const viewTitleEl = document.getElementById('viewTitle');
+        const taskCountEl = document.getElementById('taskCount');
+
+        viewTitleEl.textContent = viewTitleMap[state.currentView] || '予定一覧';
+        taskCountEl.textContent = `${state.tasks.length} 件`;
+
+        // キャッシュマップの更新
+        state.cachedTasksMap.clear();
+        state.tasks.forEach(t => state.cachedTasksMap.set(t.taskId, t));
+
+        if (state.tasks.length === 0) {
+          taskListEl.innerHTML = `
+            <div class="empty-state">
+              <div class="empty-state-icon">📋</div>
+              <div class="empty-state-text">該当する予定はありません</div>
+              <p style="font-size: 0.85rem; margin-top: 6px; color: var(--text-muted);">
+                右上の「＋予定を追加」から新しい予定を登録できます。
+              </p>
+            </div>
+          `;
+          return;
+        }
+
+        taskListEl.innerHTML = '';
+        state.tasks.forEach(task => {
+          const card = createTaskCardElement(task);
+          taskListEl.appendChild(card);
+        });
+      }
+
+      function createTaskCardElement(task) {
+        const card = document.createElement('article');
+        const isMuted = isMutedStatus(task.status);
+        card.className = `task-card ${isMuted ? 'task-muted' : ''}`;
+        card.dataset.taskId = task.taskId;
+
+        const statusClass = getStatusClass(task.status);
+        const periodText = formatPeriodLabel(task);
+
+        // 追記一覧のHTML生成
+        let notesHtml = '';
+        const notes = Array.isArray(task.notes) ? task.notes : [];
+        if (notes.length > 0) {
+          const noteItems = notes.map(n => `
+            <div class="task-note-item">
+              <div class="task-note-meta">【追記】${escapeHtml(n.timestamp || '')} ${escapeHtml(n.actor || '')}</div>
+              <div>${escapeHtml(n.note || '')}</div>
+            </div>
+          `).join('');
+
+          notesHtml = `
+            <div class="task-notes-section">
+              <div class="task-notes-header">
+                <span>📝 追記 (${notes.length}件)</span>
+              </div>
+              <div class="task-notes-list">
+                ${noteItems}
+              </div>
+            </div>
+          `;
+        }
+
+        // 担当者・更新情報の表示
+        const assigneeText = task.assignee ? `👤 担当: ${escapeHtml(task.assignee)}` : '👤 担当: (未設定)';
+        const updatedInfo = `🕒 最終更新: ${escapeHtml(task.updatedAt || task.createdAt || '')} (${escapeHtml(task.updatedBy || task.createdBy || '')})`;
+
+        card.innerHTML = `
+          <div class="task-card-header">
+            <div class="task-badges">
+              <span class="badge-status ${statusClass}">${escapeHtml(task.status)}</span>
+              <span class="badge-period">${escapeHtml(periodText)}</span>
+            </div>
+          </div>
+          <h3 class="task-title">${escapeHtml(task.title)}</h3>
+          ${task.description ? `<div class="task-desc">${escapeHtml(task.description)}</div>` : ''}
+          ${notesHtml}
+          <div class="task-meta-row">
+            <div class="task-assignee">${assigneeText}</div>
+            <div class="task-updated">${updatedInfo}</div>
+          </div>
+          <div class="task-card-actions">
+            <button type="button" class="btn-card-action btn-note" data-action="note" data-id="${task.taskId}">
+              <span>📝</span><span>追記</span>
+            </button>
+            <button type="button" class="btn-card-action btn-edit" data-action="edit" data-id="${task.taskId}">
+              <span>✏️</span><span>修正</span>
+            </button>
+            <button type="button" class="btn-card-action btn-status" data-action="status" data-id="${task.taskId}">
+              <span>🔄</span><span>状態変更</span>
+            </button>
+            <button type="button" class="btn-card-action btn-history" data-action="history" data-id="${task.taskId}">
+              <span>📜</span><span>履歴</span>
+            </button>
+          </div>
+        `;
+
+        return card;
+      }
+
+      // ========================================================================
+      // 6. Action Handlers (Note, Edit, Status, History)
+      // ========================================================================
+
+      // カード操作ボタン委譲イベント
+      document.getElementById('taskList').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+
+        const action = btn.dataset.action;
+        const taskId = btn.dataset.id;
+        const task = state.cachedTasksMap.get(taskId);
+        if (!task) return;
+
+        switch (action) {
+          case 'note':
+            handleOpenNoteModal(task);
+            break;
+          case 'edit':
+            handleOpenEditModal(task);
+            break;
+          case 'status':
+            handleOpenStatusModal(task);
+            break;
+          case 'history':
+            handleOpenHistoryModal(task);
+            break;
+        }
+      });
+
+      // 追記モーダルを開く
+      function handleOpenNoteModal(task) {
+        document.getElementById('noteTaskId').value = task.taskId;
+        document.getElementById('noteTargetTitle').textContent = task.title;
+        document.getElementById('noteContent').value = '';
+
+        const lastActor = getLastActor();
+        const actorSelect = document.getElementById('noteActor');
+        if (lastActor) actorSelect.value = lastActor;
+
+        openModal('modalNote');
+      }
+
+      // 修正モーダルを開く
+      function handleOpenEditModal(task) {
+        document.getElementById('editTaskId').value = task.taskId;
+        document.getElementById('editTitle').value = task.title;
+        document.getElementById('editPeriodType').value = task.periodType || '今日';
+
+        const dateGroup = document.getElementById('editDateGroup');
+        const dateInput = document.getElementById('editSpecifiedDate');
+        if (task.periodType === '日付指定') {
+          dateGroup.style.display = 'flex';
+          dateInput.value = task.specifiedDate || '';
+          dateInput.required = true;
+        } else {
+          dateGroup.style.display = 'none';
+          dateInput.value = '';
+          dateInput.required = false;
+        }
+
+        document.getElementById('editDescription').value = task.description || '';
+        document.getElementById('editStatus').value = task.status || '検討中';
+        document.getElementById('editAssignee').value = task.assignee || '';
+
+        const lastActor = getLastActor();
+        const updatedBySelect = document.getElementById('editUpdatedBy');
+        if (lastActor) updatedBySelect.value = lastActor;
+
+        openModal('modalEdit');
+      }
+
+      // 状態変更モーダルを開く
+      function handleOpenStatusModal(task) {
+        document.getElementById('statusTaskId').value = task.taskId;
+        document.getElementById('statusTargetTitle').textContent = task.title;
+
+        const badge = document.getElementById('statusCurrentBadge');
+        badge.className = `badge-status ${getStatusClass(task.status)}`;
+        badge.textContent = task.status;
+
+        document.getElementById('statusNewStatus').value = task.status;
+
+        const lastActor = getLastActor();
+        const actorSelect = document.getElementById('statusActor');
+        if (lastActor) actorSelect.value = lastActor;
+
+        openModal('modalStatus');
+      }
+
+      // 履歴モーダルを開く
+      async function handleOpenHistoryModal(task) {
+        document.getElementById('historyTargetTitle').textContent = task.title;
+        const container = document.getElementById('historyListContainer');
+        container.innerHTML = `
+          <div class="loading-container">
+            <div class="spinner"></div>
+            <div>履歴を読み込んでいます...</div>
+          </div>
+        `;
+        openModal('modalHistory');
+
+        try {
+          const res = await callApi('getTaskHistory', task.taskId);
+          const historyItems = res.history || [];
+
+          if (historyItems.length === 0) {
+            container.innerHTML = `
+              <div class="empty-state" style="padding: 24px 12px;">
+                <div style="font-size: 1.5rem; margin-bottom: 6px;">📜</div>
+                <div>変更履歴はありません</div>
+              </div>
+            `;
+            return;
+          }
+
+          container.innerHTML = historyItems.map(item => {
+            let detailText = '';
+            if (item.actionType === '追記') {
+              detailText = item.comment || '';
+            } else if (item.actionType === '状態変更') {
+              detailText = `${item.beforeValue} → ${item.afterValue}`;
+            } else if (item.actionType === '修正') {
+              detailText = `${item.beforeValue} → ${item.afterValue}`;
+            } else {
+              detailText = item.afterValue || item.comment || '登録';
+            }
+
+            return `
+              <div class="history-item">
+                <div class="history-header">
+                  <span class="history-type">${escapeHtml(item.actionType)}</span>
+                  <span class="history-actor">👤 ${escapeHtml(item.actor)}</span>
+                  <span class="history-time">🕒 ${escapeHtml(item.timestamp)}</span>
+                </div>
+                ${detailText ? `<div class="history-detail">${escapeHtml(detailText)}</div>` : ''}
+              </div>
+            `;
+          }).join('');
+        } catch (err) {
+          container.innerHTML = `
+            <div class="empty-state" style="color: var(--danger);">
+              <div>履歴の読み込みに失敗しました</div>
+              <div style="font-size: 0.85rem; margin-top: 4px;">${escapeHtml(err.message)}</div>
+            </div>
+          `;
+        }
+      }
+
+      // ========================================================================
+      // 7. Form Submissions (Create, Edit, Note, Status) with Anti-Double-Submit
+      // ========================================================================
+
+      // 予定時期変更時の日付フィールド連動
+      function setupPeriodTypeListener(selectId, groupContainerId, inputId) {
+        const select = document.getElementById(selectId);
+        const group = document.getElementById(groupContainerId);
+        const input = document.getElementById(inputId);
+
+        select.addEventListener('change', () => {
+          if (select.value === '日付指定') {
+            group.style.display = 'flex';
+            input.required = true;
+          } else {
+            group.style.display = 'none';
+            input.required = false;
+            input.value = '';
+          }
+        });
+      }
+
+      setupPeriodTypeListener('createPeriodType', 'createDateGroup', 'createSpecifiedDate');
+      setupPeriodTypeListener('editPeriodType', 'editDateGroup', 'editSpecifiedDate');
+
+      // 新規作成フォーム送信
+      document.getElementById('formCreate').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitCreate');
+        const form = e.target;
+
+        const title = form.title.value.trim();
+        const periodType = form.periodType.value;
+        const specifiedDate = form.specifiedDate ? form.specifiedDate.value : '';
+        const description = form.description.value.trim();
+        const status = form.status.value;
+        const assignee = form.assignee.value;
+        const createdBy = form.createdBy.value;
+
+        if (!title) {
+          showToast('タイトルを入力してください', 'error');
+          return;
+        }
+        if (periodType === '日付指定' && !specifiedDate) {
+          showToast('日付を指定してください', 'error');
+          return;
+        }
+        if (!createdBy) {
+          showToast('登録者を選択してください', 'error');
+          return;
+        }
+
+        setButtonLoading(submitBtn, true, '追加中...');
+        saveLastActor(createdBy);
+
+        try {
+          const res = await callApi('createTask', {
+            title,
+            periodType,
+            specifiedDate,
+            description,
+            status,
+            assignee,
+            createdBy
+          });
+
+          showToast('予定を追加しました', 'success');
+          closeModal('modalCreate');
+          form.reset();
+          document.getElementById('createDateGroup').style.display = 'none';
+
+          // 一覧の再取得
+          await loadTasks(state.currentView);
+        } catch (err) {
+          showToast(`エラー: ${err.message}`, 'error');
+        } finally {
+          setButtonLoading(submitBtn, false);
+        }
+      });
+
+      // 修正フォーム送信
+      document.getElementById('formEdit').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitEdit');
+        const form = e.target;
+
+        const taskId = form.taskId.value;
+        const title = form.title.value.trim();
+        const periodType = form.periodType.value;
+        const specifiedDate = form.specifiedDate ? form.specifiedDate.value : '';
+        const description = form.description.value.trim();
+        const status = form.status.value;
+        const assignee = form.assignee.value;
+        const updatedBy = form.updatedBy.value;
+
+        if (!title) {
+          showToast('タイトルを入力してください', 'error');
+          return;
+        }
+        if (periodType === '日付指定' && !specifiedDate) {
+          showToast('日付を指定してください', 'error');
+          return;
+        }
+        if (!updatedBy) {
+          showToast('更新者を選択してください', 'error');
+          return;
+        }
+
+        setButtonLoading(submitBtn, true, '保存中...');
+        saveLastActor(updatedBy);
+
+        try {
+          await callApi('updateTask', taskId, {
+            title,
+            periodType,
+            specifiedDate,
+            description,
+            status,
+            assignee,
+            updatedBy
+          });
+
+          showToast('予定を更新しました', 'success');
+          closeModal('modalEdit');
+          await loadTasks(state.currentView);
+        } catch (err) {
+          showToast(`エラー: ${err.message}`, 'error');
+        } finally {
+          setButtonLoading(submitBtn, false);
+        }
+      });
+
+      // 追記フォーム送信
+      document.getElementById('formNote').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitNote');
+        const form = e.target;
+
+        const taskId = form.taskId.value;
+        const note = form.note.value.trim();
+        const actor = form.actor.value;
+
+        if (!note) {
+          showToast('追記内容を入力してください', 'error');
+          return;
+        }
+        if (!actor) {
+          showToast('追記者を選択してください', 'error');
+          return;
+        }
+
+        setButtonLoading(submitBtn, true, '追記中...');
+        saveLastActor(actor);
+
+        try {
+          await callApi('addTaskNote', taskId, {
+            note,
+            actor
+          });
+
+          showToast('追記を登録しました', 'success');
+          closeModal('modalNote');
+          form.reset();
+          await loadTasks(state.currentView);
+        } catch (err) {
+          showToast(`エラー: ${err.message}`, 'error');
+        } finally {
+          setButtonLoading(submitBtn, false);
+        }
+      });
+
+      // 状態変更フォーム送信
+      document.getElementById('formStatus').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const submitBtn = document.getElementById('btnSubmitStatus');
+        const form = e.target;
+
+        const taskId = form.taskId.value;
+        const status = form.status.value;
+        const actor = form.actor.value;
+
+        if (!actor) {
+          showToast('変更者を選択してください', 'error');
+          return;
+        }
+
+        setButtonLoading(submitBtn, true, '変更中...');
+        saveLastActor(actor);
+
+        try {
+          await callApi('changeTaskStatus', taskId, {
+            status,
+            actor
+          });
+
+          showToast('状態を変更しました', 'success');
+          closeModal('modalStatus');
+          await loadTasks(state.currentView);
+        } catch (err) {
+          showToast(`エラー: ${err.message}`, 'error');
+        } finally {
+          setButtonLoading(submitBtn, false);
+        }
+      });
+
+      // ========================================================================
+      // 8. Navigation & Tab Switching
+      // ========================================================================
+      document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          if (btn.classList.contains('active') && !state.isLoading) return;
+
+          document.querySelectorAll('.nav-tab-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+
+          const viewType = btn.dataset.view;
+          state.currentView = viewType;
+          await loadTasks(viewType);
+        });
+      });
+
+      // ＋予定を追加ボタン
+      document.getElementById('btnOpenCreate').addEventListener('click', () => {
+        const form = document.getElementById('formCreate');
+        form.reset();
+        document.getElementById('createDateGroup').style.display = 'none';
+
+        // 状態初期値: 検討中
+        document.getElementById('createStatus').value = '検討中';
+
+        // 現在のタブに応じた予定時期の初期値設定
+        const periodSelect = document.getElementById('createPeriodType');
+        if (state.currentView === 'today') periodSelect.value = '今日';
+        else if (state.currentView === 'this_week') periodSelect.value = '今週';
+        else if (state.currentView === 'this_month') periodSelect.value = '今月';
+        else if (state.currentView === 'annual') periodSelect.value = '年間';
+        else periodSelect.value = '今日';
+
+        const lastActor = getLastActor();
+        const createdBySelect = document.getElementById('createCreatedBy');
+        if (lastActor) createdBySelect.value = lastActor;
+
+        openModal('modalCreate');
+      });
+
+      // 更新ボタン
+      document.getElementById('btnReload').addEventListener('click', async () => {
+        const reloadBtn = document.getElementById('btnReload');
+        setButtonLoading(reloadBtn, true, '更新中');
+        try {
+          await loadTasks(state.currentView);
+          showToast('最新情報を取得しました', 'info');
+        } catch (err) {
+          showToast(`更新に失敗しました: ${err.message}`, 'error');
+        } finally {
+          setButtonLoading(reloadBtn, false);
+        }
+      });
+
+      // ========================================================================
+      // 9. Data Loading & Initialization
+      // ========================================================================
+      async function loadTasks(viewType) {
+        state.isLoading = true;
+        const taskListEl = document.getElementById('taskList');
+        taskListEl.innerHTML = `
+          <div class="loading-container">
+            <div class="spinner"></div>
+            <div>予定データを読み込んでいます...</div>
+          </div>
+        `;
+
+        try {
+          const res = await callApi('getTasks', viewType);
+          state.tasks = res.tasks || [];
+          renderTasks();
+        } catch (err) {
+          taskListEl.innerHTML = `
+            <div class="empty-state" style="color: var(--danger);">
+              <div style="font-size: 2rem; margin-bottom: 8px;">⚠️</div>
+              <div style="font-weight: 700;">予定データの取得に失敗しました</div>
+              <p style="font-size: 0.85rem; margin-top: 6px;">${escapeHtml(err.message)}</p>
+              <button type="button" class="btn-reload" style="margin: 16px auto 0;" onclick="location.reload()">
+                画面を再読み込み
+              </button>
+            </div>
+          `;
+          showToast(`エラー: ${err.message}`, 'error');
+        } finally {
+          state.isLoading = false;
+        }
+      }
+
+      async function initializeApp() {
+        try {
+          const res = await callApi('getInitialData');
+          state.members = res.members || [];
+          state.tasks = res.tasks || [];
+          state.serverTime = res.serverTime || '';
+          if (res.currentView) {
+            state.currentView = res.currentView;
+            document.querySelectorAll('.nav-tab-btn').forEach(btn => {
+              btn.classList.toggle('active', btn.dataset.view === state.currentView);
+            });
+          }
+
+          updateMemberSelects();
+          renderTasks();
+        } catch (err) {
+          showToast(`初期読み込みエラー: ${err.message}`, 'error');
+          // エラー時でもメンバーだけでも取得を試みる
+          try {
+            const memberRes = await callApi('getMembers');
+            state.members = memberRes.members || [];
+            updateMemberSelects();
+          } catch (_) {}
+          renderTasks();
+        }
+      }
+
+      // アプリ起動
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initializeApp);
+      } else {
+        initializeApp();
+      }
+    })();
+  </script>
+</body>
+</html>
