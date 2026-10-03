@@ -97,6 +97,11 @@ class MockSheet {
     return this;
   }
 
+  deleteRow(rowPosition) {
+    this.data.splice(rowPosition - 1, 1);
+    return this;
+  }
+
   clear() {
     this.data = [];
   }

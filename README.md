@@ -32,6 +32,7 @@ school-todo/
 │   ├── test-logic.js          # 期間判定・境界値 (月曜/日曜/月初/月末/年末年始/うるう年) テスト
 │   ├── test-backend.js        # バックエンドAPI・排他制御・二重登録防止テスト
 │   ├── test-human-scenarios.js# 人間テストケース1〜10、第58項最終人間シナリオ、履歴完全性、UXテスト
+│   ├── test-regressions.js    # 再発防止テスト (GAS読み込み順、履歴の整合性、メンバー確認、履歴の並び順)
 │   ├── test-ui-dom.js         # UI構造、DOM、CSSレスポンシブ、アクセシビリティ検証
 │   └── run-all-tests.js       # 全テストスイート一括実行スクリプト
 ├── DESIGN.md          # 内部設計書
