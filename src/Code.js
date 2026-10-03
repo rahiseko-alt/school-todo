@@ -478,7 +478,8 @@ function getTasks(viewType) {
 /**
  * 予定新規作成API (LockService排他制御, 二重登録防止, 連番ID採番, 整合的履歴記録)
  * @param {object} data { title: string, periodType: string, specifiedDate?: string, description?: string, status: string, assignee?: string, createdBy: string }
- * @returns {{ success: boolean, task: object }|{ success: false, error: string }}
+ * @returns {{ success: boolean, task: object, duplicate?: boolean }|{ success: false, error: string }}
+ *   duplicate: 同じ人が同じ分に同じ予定を送ったため、新しく作らず既存の予定を返した
  */
 function createTask(data) {
   var valRes = getLogic().validateTaskInput(data, false);
@@ -519,7 +520,8 @@ function createTask(data) {
           formatDateVal(r[4]) === specifiedDate &&
           formatDateTimeVal(r[8]) === nowStr
         ) {
-          return { success: true, task: rowToTask(r, []) };
+          // 2件目は作らず、既存の予定を返したことを画面に伝える
+          return { success: true, duplicate: true, task: rowToTask(r, []) };
         }
       }
     }

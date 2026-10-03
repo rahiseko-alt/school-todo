@@ -235,6 +235,25 @@ test('何も変えずに修正を保存しても、保存せず履歴も残さ�
   assert.strictEqual(ss.getSheetByName('History').getLastRow(), 2, '新規登録の1件のみ');
 });
 
+test('同じ分に同じ予定を送ると2件目は作らず、作らなかったことを返す', () => {
+  const ss = setupCleanEnvironment();
+  const input = { title: '同じ予定', periodType: '今月', status: '検討中', createdBy: '教頭' };
+  const first = Code.createTask(input);
+  const second = Code.createTask(input);
+
+  assert.strictEqual(first.success, true);
+  assert.ok(!first.duplicate, '1件目は新規作成');
+  assert.strictEqual(second.success, true);
+  assert.strictEqual(second.duplicate, true, '2件目は作らなかったことが分かる');
+  assert.strictEqual(second.task.taskId, first.task.taskId);
+  assert.strictEqual(ss.getSheetByName('Tasks').getLastRow(), 2);
+});
+
+test('画面: 2件目を作らなかったときは「すでに登録されています」と知らせる', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'src', 'index.html'), 'utf8');
+  assert.ok(html.includes('res.duplicate') && html.includes('同じ予定がすでに登録されています'));
+});
+
 test('historyId は UUID そのもの', () => {
   const ss = setupCleanEnvironment();
   Code.createTask({ title: 'ID確認', periodType: '今週', status: '検討中', createdBy: '教頭' });

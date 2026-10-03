@@ -1792,7 +1792,11 @@
             createdBy
           });
 
-          showToast('予定を追加しました', 'success');
+          if (res.duplicate) {
+            showToast('同じ予定がすでに登録されています（2件目は作っていません）', 'info');
+          } else {
+            showToast('予定を追加しました', 'success');
+          }
           closeModal('modalCreate');
           form.reset();
           document.getElementById('createDateGroup').style.display = 'none';
