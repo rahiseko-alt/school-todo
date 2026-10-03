@@ -132,9 +132,16 @@ test('CSS検証: 完了・中止タスクの淡色表示 (.task-muted) クラス
   assert.ok(html.includes('.task-muted') || html.includes('task-muted'), 'task-muted クラスが存在すること');
 });
 
-// 10. ローカルストレージでの操作者記憶 (現場教職員の利便性)
-test('JS検証: 直近の操作者を localStorage に保存・初期選択する機能', () => {
-  assert.ok(html.includes('localStorage') && html.includes('school_board_last_actor'), '操作者記憶キー school_board_last_actor が利用されていること');
+// 10. 操作者を自動で選ばない (指示書第27項D: 名前選択は本人確認ではない。前の人の名前で保存させない)
+test('JS検証: 操作者を記憶・自動選択せず、名前選択が本人確認でない旨を表示する', () => {
+  assert.ok(!html.includes('localStorage'), '操作者を localStorage に記憶しないこと');
+  const notes = html.match(/名前の選択は本人確認ではありません/g) || [];
+  assert.strictEqual(notes.length, 4, '登録者・更新者・追記者・変更者の4欄すべてに表示すること');
+});
+
+// 11. 動作確認用の仮データ・仮処理が本番画面に残っていない (指示書第55項)
+test('JS検証: 仮データ・仮処理 (mock) が残っていない', () => {
+  assert.ok(!/mock/i.test(html), 'mock の文字列が残っていないこと');
 });
 
 console.log(`\nUI / DOM / CSS Tests Finished: Passed=${passedTests}, Failed=${failedTests}`);

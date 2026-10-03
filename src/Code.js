@@ -602,9 +602,9 @@ function updateTask(taskId, data) {
       var comment = c[3] === '状態変更' ? '状態を「' + c[1] + '」から「' + c[2] + '」に変更' : '';
       historyRows.push(buildHistoryRow(taskId, nowStr, updatedBy, c[3], c[0], c[1], c[2], comment));
     }
-    // 差分がなくても保存操作をしたことは記録する
+    // 何も変わっていなければ保存も履歴記録もしない
     if (historyRows.length === 0) {
-      historyRows.push(buildHistoryRow(taskId, nowStr, updatedBy, '修正', '全体', oldTitle, newTitle, '変更なし更新'));
+      return { success: false, error: '変更された項目がありません。直したい項目を書き換えてから保存してください。' };
     }
 
     var updatedRow = [

@@ -223,6 +223,18 @@ test('指示書第13項: 履歴は新しい順に返る', () => {
   assert.deepStrictEqual(history.map(h => h.actionType), ['状態変更', '追記', '新規登録']);
 });
 
+test('何も変えずに修正を保存しても、保存せず履歴も残さない', () => {
+  const ss = setupCleanEnvironment();
+  const created = Code.createTask({ title: '変更なし', periodType: '今週', status: '検討中', createdBy: '教頭' });
+  const before = JSON.stringify(ss.getSheetByName('Tasks').data);
+
+  const res = Code.updateTask(created.task.taskId, { title: '変更なし', periodType: '今週', status: '検討中', updatedBy: '校長' });
+  assert.strictEqual(res.success, false);
+  assert.ok(res.error.includes('変更された項目がありません'));
+  assert.strictEqual(JSON.stringify(ss.getSheetByName('Tasks').data), before, '更新者・更新日時も変わらないこと');
+  assert.strictEqual(ss.getSheetByName('History').getLastRow(), 2, '新規登録の1件のみ');
+});
+
 test('historyId は UUID そのもの', () => {
   const ss = setupCleanEnvironment();
   Code.createTask({ title: 'ID確認', periodType: '今週', status: '検討中', createdBy: '教頭' });

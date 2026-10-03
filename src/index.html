@@ -1263,321 +1263,28 @@
         cachedTasksMap: new Map() // taskId -> Task
       };
 
-      // 直近選択した操作者を localStorage で記憶するキー
-      const LAST_ACTOR_STORAGE_KEY = 'school_board_last_actor';
-
       // ========================================================================
-      // 2. GAS API Client / Local Mock Fallback
+      // 2. GAS API Client
       // ========================================================================
-      const isGasEnvironment = Boolean(
-        typeof google !== 'undefined' &&
-        google.script &&
-        google.script.run
-      );
-
-      // ローカルモック用データ
-      const mockStorage = {
-        members: [
-          { memberId: 'MEM-0001', name: '校長', active: true, sortOrder: 1 },
-          { memberId: 'MEM-0002', name: '教頭', active: true, sortOrder: 2 },
-          { memberId: 'MEM-0003', name: '教務主任', active: true, sortOrder: 3 },
-          { memberId: 'MEM-0004', name: '1年主任', active: true, sortOrder: 4 },
-          { memberId: 'MEM-0005', name: '2年主任', active: true, sortOrder: 5 },
-          { memberId: 'MEM-0006', name: '3年主任', active: true, sortOrder: 6 },
-          { memberId: 'MEM-0007', name: '養護教諭', active: true, sortOrder: 7 },
-          { memberId: 'MEM-0008', name: '事務職員', active: true, sortOrder: 8 }
-        ],
-        tasks: [
-          {
-            taskId: 'TASK-20261003-0001',
-            title: '全校朝礼・生活指導',
-            description: '体育館にて実施。寒暖差に注意し換気を行うこと。',
-            periodType: '今日',
-            specifiedDate: '',
-            status: '進行中',
-            assignee: '教務主任',
-            createdBy: '教頭',
-            createdAt: '2026/10/03 08:15',
-            updatedBy: '教務主任',
-            updatedAt: '2026/10/03 08:30',
-            notes: [
-              { timestamp: '2026/10/03 08:30', actor: '教務主任', note: '体育館の音響設備点検完了' }
-            ]
-          },
-          {
-            taskId: 'TASK-20261003-0002',
-            title: '運動会プログラム最終確認会議',
-            description: '各学年主任は進行表の修正箇所を持ち寄ること。職員室にて。',
-            periodType: '今週',
-            specifiedDate: '2026-10-06',
-            status: '検討中',
-            assignee: '1年主任',
-            createdBy: '教務主任',
-            createdAt: '2026/10/02 16:00',
-            updatedBy: '教務主任',
-            updatedAt: '2026/10/02 16:00',
-            notes: []
-          },
-          {
-            taskId: 'TASK-20261003-0003',
-            title: '就学時健康診断の案内配布',
-            description: '対象家庭への案内プリント印刷および封入作業。',
-            periodType: '今月',
-            specifiedDate: '',
-            status: '保留',
-            assignee: '養護教諭',
-            createdBy: '養護教諭',
-            createdAt: '2026/10/01 10:00',
-            updatedBy: '教頭',
-            updatedAt: '2026/10/02 11:20',
-            notes: [
-              { timestamp: '2026/10/02 11:20', actor: '教頭', note: '教育委員会からの確認待ちのため一時保留' }
-            ]
-          },
-          {
-            taskId: 'TASK-20261003-0004',
-            title: '校舎定期清掃',
-            description: '業者によるワックスがけ完了。',
-            periodType: '今日',
-            specifiedDate: '',
-            status: '完了',
-            assignee: '事務職員',
-            createdBy: '事務職員',
-            createdAt: '2026/10/01 09:00',
-            updatedBy: '事務職員',
-            updatedAt: '2026/10/03 07:45',
-            notes: []
-          }
-        ],
-        history: [
-          {
-            historyId: 'HIST-0001',
-            taskId: 'TASK-20261003-0001',
-            timestamp: '2026/10/03 08:15',
-            actor: '教頭',
-            actionType: '新規登録',
-            fieldName: '全体',
-            beforeValue: '',
-            afterValue: '登録完了',
-            comment: ''
-          },
-          {
-            historyId: 'HIST-0002',
-            taskId: 'TASK-20261003-0001',
-            timestamp: '2026/10/03 08:30',
-            actor: '教務主任',
-            actionType: '追記',
-            fieldName: '追記',
-            beforeValue: '',
-            afterValue: '',
-            comment: '体育館の音響設備点検完了'
-          }
-        ]
-      };
-
       /**
        * GAS API 呼び出し抽象化ラッパー
        */
       function callApi(methodName, ...args) {
         return new Promise((resolve, reject) => {
-          if (isGasEnvironment) {
-            google.script.run
-              .withSuccessHandler(response => {
-                if (response && response.success === false) {
-                  console.error(`[${methodName}] ${response.error}`);
-                  reject(new Error(response.error || '処理できませんでした。もう一度操作してください。'));
-                } else {
-                  resolve(response);
-                }
-              })
-              .withFailureHandler(err => {
-                console.error(`[${methodName}]`, err);
-                reject(new Error('通信できませんでした。もう一度操作してください。'));
-              })[methodName](...args);
-          } else {
-            // ローカルモック処理 (0.2s の遅延で通信をシミュレート)
-            setTimeout(() => {
-              try {
-                const res = mockExecute(methodName, args);
-                resolve(res);
-              } catch (e) {
-                reject(e);
+          google.script.run
+            .withSuccessHandler(response => {
+              if (response && response.success === false) {
+                console.error(`[${methodName}] ${response.error}`);
+                reject(new Error(response.error || '処理できませんでした。もう一度操作してください。'));
+              } else {
+                resolve(response);
               }
-            }, 200);
-          }
+            })
+            .withFailureHandler(err => {
+              console.error(`[${methodName}]`, err);
+              reject(new Error('通信できませんでした。もう一度操作してください。'));
+            })[methodName](...args);
         });
-      }
-
-      function mockExecute(methodName, args) {
-        const nowStr = formatDateTime(new Date());
-
-        switch (methodName) {
-          case 'getInitialData':
-            return {
-              success: true,
-              members: mockStorage.members.filter(m => m.active),
-              tasks: mockFilterTasks(state.currentView),
-              serverTime: nowStr,
-              currentView: state.currentView
-            };
-
-          case 'getTasks': {
-            const viewType = args[0] || 'today';
-            return {
-              success: true,
-              tasks: mockFilterTasks(viewType)
-            };
-          }
-
-          case 'createTask': {
-            const data = args[0];
-            const newId = 'TASK-' + Date.now();
-            const newTask = {
-              taskId: newId,
-              title: data.title,
-              periodType: data.periodType,
-              specifiedDate: data.specifiedDate || '',
-              description: data.description || '',
-              status: data.status || '検討中',
-              assignee: data.assignee || '',
-              createdBy: data.createdBy,
-              createdAt: nowStr,
-              updatedBy: data.createdBy,
-              updatedAt: nowStr,
-              notes: []
-            };
-            mockStorage.tasks.unshift(newTask);
-            mockStorage.history.unshift({
-              historyId: 'HIST-' + Date.now(),
-              taskId: newId,
-              timestamp: nowStr,
-              actor: data.createdBy,
-              actionType: '新規登録',
-              fieldName: '全体',
-              beforeValue: '',
-              afterValue: '登録完了',
-              comment: ''
-            });
-            return { success: true, task: newTask };
-          }
-
-          case 'updateTask': {
-            const taskId = args[0];
-            const data = args[1];
-            const task = mockStorage.tasks.find(t => t.taskId === taskId);
-            if (!task) throw new Error('対象の予定が見つかりません');
-
-            mockStorage.history.unshift({
-              historyId: 'HIST-' + Date.now(),
-              taskId: taskId,
-              timestamp: nowStr,
-              actor: data.updatedBy,
-              actionType: '修正',
-              fieldName: '全体',
-              beforeValue: `[${task.status}] ${task.title}`,
-              afterValue: `[${data.status}] ${data.title}`,
-              comment: ''
-            });
-
-            task.title = data.title;
-            task.periodType = data.periodType;
-            task.specifiedDate = data.specifiedDate || '';
-            task.description = data.description || '';
-            task.status = data.status;
-            task.assignee = data.assignee || '';
-            task.updatedBy = data.updatedBy;
-            task.updatedAt = nowStr;
-
-            return { success: true, task: task };
-          }
-
-          case 'addTaskNote': {
-            const taskId = args[0];
-            const data = args[1];
-            const task = mockStorage.tasks.find(t => t.taskId === taskId);
-            if (!task) throw new Error('対象の予定が見つかりません');
-
-            if (!Array.isArray(task.notes)) task.notes = [];
-            task.notes.push({
-              timestamp: nowStr,
-              actor: data.actor,
-              note: data.note
-            });
-            task.updatedBy = data.actor;
-            task.updatedAt = nowStr;
-
-            mockStorage.history.unshift({
-              historyId: 'HIST-' + Date.now(),
-              taskId: taskId,
-              timestamp: nowStr,
-              actor: data.actor,
-              actionType: '追記',
-              fieldName: '追記',
-              beforeValue: '',
-              afterValue: '',
-              comment: data.note
-            });
-
-            return { success: true, task: task };
-          }
-
-          case 'changeTaskStatus': {
-            const taskId = args[0];
-            const data = args[1];
-            const task = mockStorage.tasks.find(t => t.taskId === taskId);
-            if (!task) throw new Error('対象の予定が見つかりません');
-
-            const oldStatus = task.status;
-            task.status = data.status;
-            task.updatedBy = data.actor;
-            task.updatedAt = nowStr;
-
-            mockStorage.history.unshift({
-              historyId: 'HIST-' + Date.now(),
-              taskId: taskId,
-              timestamp: nowStr,
-              actor: data.actor,
-              actionType: '状態変更',
-              fieldName: 'status',
-              beforeValue: oldStatus,
-              afterValue: data.status,
-              comment: ''
-            });
-
-            return { success: true, task: task };
-          }
-
-          case 'getTaskHistory': {
-            const taskId = args[0];
-            const history = mockStorage.history.filter(h => h.taskId === taskId);
-            return { success: true, history: history };
-          }
-
-          case 'getMembers':
-            return {
-              success: true,
-              members: mockStorage.members.filter(m => m.active)
-            };
-
-          default:
-            throw new Error(`未定義のAPIメソッド: ${methodName}`);
-        }
-      }
-
-      function mockFilterTasks(viewType) {
-        if (viewType === 'annual') {
-          return [...mockStorage.tasks];
-        }
-        if (viewType === 'today') {
-          return mockStorage.tasks.filter(t => t.periodType === '今日');
-        }
-        if (viewType === 'this_week') {
-          return mockStorage.tasks.filter(t => t.periodType === '今日' || t.periodType === '今週');
-        }
-        if (viewType === 'this_month') {
-          return mockStorage.tasks.filter(t => t.periodType === '今日' || t.periodType === '今週' || t.periodType === '今月');
-        }
-        return [...mockStorage.tasks];
       }
 
       // ========================================================================
@@ -1595,18 +1302,6 @@
           .replace(/>/g, '&gt;')
           .replace(/"/g, '&quot;')
           .replace(/'/g, '&#39;');
-      }
-
-      /**
-       * 日時フォーマット YYYY/MM/DD HH:mm
-       */
-      function formatDateTime(d) {
-        const year = d.getFullYear();
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const day = String(d.getDate()).padStart(2, '0');
-        const hour = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${year}/${month}/${day} ${hour}:${min}`;
       }
 
       /**
@@ -1698,31 +1393,10 @@
       }
 
       /**
-       * 直近の選択操作者を localStorage に保存 / 取得
-       */
-      function saveLastActor(actorName) {
-        if (!actorName) return;
-        try {
-          localStorage.setItem(LAST_ACTOR_STORAGE_KEY, actorName);
-        } catch (e) {
-          // localStorage 使用不可環境でのサイレントフォールバック
-        }
-      }
-
-      function getLastActor() {
-        try {
-          return localStorage.getItem(LAST_ACTOR_STORAGE_KEY) || '';
-        } catch (e) {
-          return '';
-        }
-      }
-
-      /**
        * メンバープルダウンの選択肢を一括更新
        */
       function updateMemberSelects() {
         const selects = document.querySelectorAll('.member-select');
-        const lastActor = getLastActor();
 
         selects.forEach(select => {
           const isRequired = select.hasAttribute('required');
@@ -1748,11 +1422,9 @@
             select.appendChild(opt);
           });
 
-          // 復元または直近操作者の初期選択
+          // 再読み込み前に選んでいた値だけ復元する (操作者を自動で選ばない: 指示書第27項D)
           if (currentValue && state.members.some(m => m.name === currentValue)) {
             select.value = currentValue;
-          } else if (isRequired && lastActor && state.members.some(m => m.name === lastActor)) {
-            select.value = lastActor;
           }
         });
       }
@@ -1945,9 +1617,8 @@
         document.getElementById('noteTargetTitle').textContent = task.title;
         document.getElementById('noteContent').value = '';
 
-        const lastActor = getLastActor();
-        const actorSelect = document.getElementById('noteActor');
-        if (lastActor) actorSelect.value = lastActor;
+        // 操作者は毎回本人が選ぶ (前の人の名前を残さない)
+        document.getElementById('noteActor').value = '';
 
         openModal('modalNote');
       }
@@ -1974,9 +1645,8 @@
         document.getElementById('editStatus').value = task.status || '検討中';
         document.getElementById('editAssignee').value = task.assignee || '';
 
-        const lastActor = getLastActor();
-        const updatedBySelect = document.getElementById('editUpdatedBy');
-        if (lastActor) updatedBySelect.value = lastActor;
+        // 操作者は毎回本人が選ぶ (前の人の名前を残さない)
+        document.getElementById('editUpdatedBy').value = '';
 
         openModal('modalEdit');
       }
@@ -1992,9 +1662,8 @@
 
         document.getElementById('statusNewStatus').value = task.status;
 
-        const lastActor = getLastActor();
-        const actorSelect = document.getElementById('statusActor');
-        if (lastActor) actorSelect.value = lastActor;
+        // 操作者は毎回本人が選ぶ (前の人の名前を残さない)
+        document.getElementById('statusActor').value = '';
 
         openModal('modalStatus');
       }
@@ -2111,7 +1780,6 @@
         }
 
         setButtonLoading(submitBtn, true, '追加中...');
-        saveLastActor(createdBy);
 
         try {
           const res = await callApi('createTask', {
@@ -2167,7 +1835,6 @@
         }
 
         setButtonLoading(submitBtn, true, '保存中...');
-        saveLastActor(updatedBy);
 
         try {
           await callApi('updateTask', taskId, {
@@ -2210,7 +1877,6 @@
         }
 
         setButtonLoading(submitBtn, true, '追記中...');
-        saveLastActor(actor);
 
         try {
           await callApi('addTaskNote', taskId, {
@@ -2245,7 +1911,6 @@
         }
 
         setButtonLoading(submitBtn, true, '変更中...');
-        saveLastActor(actor);
 
         try {
           await callApi('changeTaskStatus', taskId, {
@@ -2296,9 +1961,8 @@
         else if (state.currentView === 'annual') periodSelect.value = '年間';
         else periodSelect.value = '今日';
 
-        const lastActor = getLastActor();
-        const createdBySelect = document.getElementById('createCreatedBy');
-        if (lastActor) createdBySelect.value = lastActor;
+        // 操作者は毎回本人が選ぶ (前の人の名前を残さない)
+        document.getElementById('createCreatedBy').value = '';
 
         openModal('modalCreate');
       });
